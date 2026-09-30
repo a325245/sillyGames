@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Santorini - 3D Strategy Game</title>
+  <title>Santorini - 3D Strategy Game with Debugger</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -147,7 +147,60 @@
     </div>
   </div>
 
+  <!-- DEBUGGER OVERLAY -->
+  <button id="debugToggleBtn" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; padding: 10px 15px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+    🐛 Bug Reporter
+  </button>
+
+  <div id="debugPanel" style="display: none; position: fixed; bottom: 70px; right: 20px; width: 480px; height: 420px; background: rgba(15, 23, 42, 0.95); color: #22c55e; z-index: 9999; padding: 15px; border-radius: 12px; font-family: monospace; font-size: 11px; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5); flex-direction: column;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #334155; pb-2;">
+      <strong style="color: white; font-size: 13px;">Verbose Firebase & Game Debugger</strong>
+      <button id="copyDebugBtn" style="background: #3b82f6; color: white; border: none; padding: 4px 10px; cursor: pointer; border-radius: 6px; font-weight: bold;">Copy Logs</button>
+    </div>
+    <pre id="debugOutput" style="flex-grow: 1; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; margin: 0; padding-right: 5px; color: #a7f3d0;"></pre>
+  </div>
+
   <script>
+    // --- DEBUGGER SETUP ---
+    const debugPanel = document.getElementById('debugPanel');
+    const debugOutput = document.getElementById('debugOutput');
+    const debugToggleBtn = document.getElementById('debugToggleBtn');
+    const copyDebugBtn = document.getElementById('copyDebugBtn');
+
+    debugToggleBtn.addEventListener('click', () => {
+      debugPanel.style.display = debugPanel.style.display === 'none' ? 'flex' : 'none';
+    });
+
+    copyDebugBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(debugOutput.textContent).then(() => {
+        const originalText = copyDebugBtn.innerText;
+        copyDebugBtn.innerText = "Copied!";
+        setTimeout(() => copyDebugBtn.innerText = originalText, 2000);
+      });
+    });
+
+    window.debugLog = function(action, data = null) {
+      const time = new Date().toLocaleTimeString() + '.' + String(new Date().getMilliseconds()).padStart(3, '0');
+      let logString = `[${time}] ${action}\n`;
+      
+      if (data !== null) {
+        try {
+          if (data instanceof Error) {
+            logString += `Error Details: ${JSON.stringify(data, Object.getOwnPropertyNames(data), 2)}\n`;
+          } else {
+            logString += `Data: ${JSON.stringify(data, null, 2)}\n`;
+          }
+        } catch (e) {
+          logString += `Data: [Object non-stringifiable]\n`;
+        }
+      }
+      logString += `----------------------------------------\n`;
+      
+      debugOutput.textContent = logString + debugOutput.textContent;
+      console.log(`[DEBUG] ${action}`, data);
+    };
+
+    // --- GAME & FIREBASE CONFIG ---
     const DEFAULT_FIREBASE_CONFIG = {
       apiKey: "AIzaSyC7i1HKFKY3_CrTp4UymiOpQOufAA0pkrA",
       authDomain: "santorino-1a999.firebaseapp.com",
@@ -163,7 +216,7 @@
     let currentRoomRef = null;
     let localPlayerRole = 1;
     let isHost = false;
-    let ignoreNextRemoteSync = false; // Prevents local echo resets
+    let ignoreNextRemoteSync = false;
 
     const BOARD_SIZE = 5;
     let boardState = createEmptyBoard();
@@ -209,6 +262,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+      debugLog('App Initializing...');
       initThreeJS();
       initUI();
       initFirebase();
@@ -218,14 +272,27 @@
 
     function initFirebase() {
       try {
+        debugLog('Initializing Firebase SDK', { databaseURL: DEFAULT_FIREBASE_CONFIG.databaseURL });
         if (!firebase.apps.length) {
           firebaseApp = firebase.initializeApp(DEFAULT_FIREBASE_CONFIG);
         } else {
           firebaseApp = firebase.app();
         }
         firebaseDb = firebase.database();
+        debugLog('Firebase initialized successfully.');
+
+        // Monitor actual socket connection status
+        const connectedRef = firebaseDb.ref('.info/connected');
+        connectedRef.on('value', (snap) => {
+          if (snap.val() === true) {
+            debugLog('Firebase Realtime DB Socket CONNECTED.');
+          } else {
+            debugLog('Firebase Realtime DB Socket DISCONNECTED.');
+          }
+        });
+
       } catch (err) {
-        console.warn("Firebase init notice:", err);
+        debugLog('Firebase Initialization ERROR', err);
       }
     }
 
@@ -456,13 +523,17 @@
 
       if (intersects.length > 0) {
         const { r, c } = intersects[0].object.userData;
+        debugLog(`Tile Clicked: [${r}, ${c}]`, { currentTurn, gamePhase, localPlayerRole, gameMode });
         handleTileClick(r, c);
       }
     }
 
     function handleTileClick(r, c) {
       if (gamePhase === 'GAME_OVER') return;
-      if (gameMode === 'ONLINE' && currentTurn !== localPlayerRole) return;
+      if (gameMode === 'ONLINE' && currentTurn !== localPlayerRole) {
+        debugLog('Click ignored: Not your turn in online mode.');
+        return;
+      }
 
       if (gamePhase === 'PLACEMENT') {
         if (!boardState[r][c].worker) {
@@ -472,6 +543,7 @@
           if (placementCount[1] === 2 && placementCount[2] === 2) {
             gamePhase = 'SELECT_WORKER';
             currentTurn = 1;
+            debugLog('Placement phase complete! Transitioning to SELECT_WORKER.');
           } else {
             currentTurn = currentTurn === 1 ? 2 : 1;
           }
@@ -481,11 +553,13 @@
         if (boardState[r][c].worker === currentTurn) {
           selectedWorkerPos = { r, c };
           gamePhase = 'MOVE';
+          debugLog(`Worker selected at [${r}, ${c}]. Phase changed to MOVE.`);
           syncAndRender();
         }
       } else if (gamePhase === 'MOVE') {
         if (boardState[r][c].worker === currentTurn) {
           selectedWorkerPos = { r, c };
+          debugLog(`Switched active worker to [${r}, ${c}].`);
           syncAndRender();
           return;
         }
@@ -499,14 +573,18 @@
           boardState[r][c].worker = worker;
           selectedWorkerPos = { r, c };
 
+          debugLog(`Moved worker from [${from.r}, ${from.c}] to [${r}, ${c}].`);
+
           if (boardState[r][c].level === 3) {
             gamePhase = 'GAME_OVER';
             updateUIBanner(`🎉 PLAYER ${currentTurn} WINS BY CLIMBING LEVEL 3!`);
+            debugLog(`GAME OVER: Player ${currentTurn} reached level 3!`);
             syncAndRender();
             return;
           }
 
           gamePhase = 'BUILD';
+          debugLog('Phase changed to BUILD.');
           syncAndRender();
         }
       } else if (gamePhase === 'BUILD') {
@@ -514,8 +592,10 @@
         if (validBuilds.some(b => b.r === r && b.c === c)) {
           if (boardState[r][c].level < 3) {
             boardState[r][c].level++;
+            debugLog(`Built Level ${boardState[r][c].level} at [${r}, ${c}].`);
           } else {
             boardState[r][c].dome = true;
+            debugLog(`Built Dome at [${r}, ${c}].`);
           }
 
           selectedWorkerPos = null;
@@ -526,10 +606,12 @@
             gamePhase = 'GAME_OVER';
             const winner = currentTurn === 1 ? 2 : 1;
             updateUIBanner(`🎉 PLAYER ${winner} WINS! PLAYER ${currentTurn} HAS NO LEGAL MOVES.`);
+            debugLog(`GAME OVER: Player ${currentTurn} has no valid moves.`);
             syncAndRender();
             return;
           }
 
+          debugLog(`Turn ended. Next player: ${currentTurn}. Phase: SELECT_WORKER`);
           syncAndRender();
 
           if (gameMode === 'AI' && currentTurn === 2 && gamePhase !== 'GAME_OVER') {
@@ -659,18 +741,29 @@
 
       if (gameMode === 'ONLINE' && currentRoomRef) {
         ignoreNextRemoteSync = true;
-        currentRoomRef.set({
+        const payload = {
           flatBoard: serializeBoard(boardState),
           currentTurn,
           gamePhase,
           placementCount,
           selectedWorkerPos: selectedWorkerPos || { r: -1, c: -1 },
           lastUpdated: Date.now()
-        });
+        };
+
+        debugLog('Attempting Firebase room state WRITE...', payload);
+
+        currentRoomRef.set(payload)
+          .then(() => {
+            debugLog('Firebase WRITE SUCCESS!');
+          })
+          .catch((err) => {
+            debugLog('Firebase WRITE FAILED / REJECTED', err);
+          });
       }
     }
 
     function resetGameLogic() {
+      debugLog('Resetting game logic...');
       boardState = createEmptyBoard();
       currentTurn = 1;
       gamePhase = 'PLACEMENT';
@@ -690,6 +783,7 @@
 
       function setMode(mode) {
         gameMode = mode;
+        debugLog(`Game mode selected: ${mode}`);
         ['local', 'ai', 'online'].forEach(m => {
           const btn = document.getElementById(`opt-mode-${m}`);
           const active = m.toUpperCase() === mode;
@@ -721,41 +815,56 @@
 
     function setupOnlineRoom(isCreating) {
       if (!firebaseDb) {
-        document.getElementById('online-status').innerText = 'Firebase not initialized.';
+        const msg = 'Firebase not initialized. Check console or config.';
+        document.getElementById('online-status').innerText = msg;
+        debugLog('ERROR: ' + msg);
         return;
       }
 
       const roomCode = document.getElementById('input-room-code').value.trim().toUpperCase();
       if (!roomCode || roomCode.length < 3) {
-        document.getElementById('online-status').innerText = 'Enter a valid Room Code.';
+        const msg = 'Enter a valid Room Code (3+ letters)';
+        document.getElementById('online-status').innerText = msg;
+        debugLog('WARNING: ' + msg);
         return;
       }
+
+      debugLog(`Setting up Online Room. Code: "${roomCode}", Action: ${isCreating ? 'CREATE' : 'JOIN'}`);
 
       currentRoomRef = firebaseDb.ref('rooms/' + roomCode);
       gameMode = 'ONLINE';
 
-      // Automatically launch straight into game mode when button clicked
+      // Auto close modal & reveal close button
       document.getElementById('modal-start-menu').classList.add('hidden');
       document.getElementById('btn-close-menu').classList.remove('hidden');
 
       if (isCreating) {
         localPlayerRole = 1;
         isHost = true;
+        debugLog(`Assigned as HOST (Player 1) for room "${roomCode}"`);
         currentRoomRef.onDisconnect().remove();
-
-        resetGameLogic(); // Sync initial empty board directly
+        resetGameLogic();
       } else {
         localPlayerRole = 2;
         isHost = false;
+        debugLog(`Assigned as GUEST (Player 2) for room "${roomCode}"`);
       }
 
+      // Subscribe to remote updates
+      debugLog(`Attaching database listener on path: "rooms/${roomCode}"`);
+      
       currentRoomRef.on('value', snapshot => {
+        debugLog(`Firebase 'value' event triggered for room "${roomCode}".`);
+
         if (ignoreNextRemoteSync) {
+          debugLog('Echo guard active: Skipped processing self-triggered remote sync.');
           ignoreNextRemoteSync = false;
           return;
         }
 
         const data = snapshot.val();
+        debugLog('Snapshot data received:', data);
+
         if (data) {
           boardState = deserializeBoard(data.flatBoard);
           currentTurn = data.currentTurn;
@@ -765,7 +874,11 @@
           
           render3DBoardFromState();
           updateUIStatus();
+        } else {
+          debugLog(`Room "${roomCode}" is empty or has no state.`);
         }
+      }, (error) => {
+        debugLog('Firebase READ ERROR / Permission Denied:', error);
       });
     }
 
