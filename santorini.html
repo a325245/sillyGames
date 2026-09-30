@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Santorini 3D Board Game</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; user-select: none; }
+        .font-cinzel { font-family: 'Cinzel', serif; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); }
+        ::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.3); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(56, 189, 248, 0.6); }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 overflow-hidden">
+
+    <!-- HUD TOP BAR (Active Gameplay UI) -->
+    <div id="ui-container" class="absolute inset-0 pointer-events-none flex flex-col justify-between p-3 md:p-5 z-10">
+        <div class="flex flex-wrap items-center justify-between gap-3 pointer-events-auto">
+            <!-- Brand & Room Code -->
+            <div class="flex items-center space-x-3">
+                <div class="glass-panel px-4 py-2 rounded-2xl shadow-2xl flex items-center space-x-3">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 via-blue-600 to-indigo-700 flex items-center justify-center font-cinzel font-black text-lg text-white shadow-lg border border-sky-300/30">
+                        S
+                    </div>
+                    <div>
+                        <h1 class="font-cinzel text-sm md:text-base font-bold tracking-wider text-sky-200">SANTORINI 3D</h1>
+                        <p id="hud-mode-display" class="text-[11px] text-slate-300 font-medium">Local Pass & Play</p>
+                    </div>
+                </div>
+
+                <div id="room-indicator" class="hidden glass-panel px-3 py-2 rounded-xl flex items-center space-x-2 text-xs font-mono text-sky-300 border border-sky-500/30">
+                    <span>ROOM:</span>
+                    <strong id="room-code-display" class="text-amber-400 font-bold">----</strong>
+                </div>
+            </div>
+
+            <!-- Top Action Controls -->
+            <div class="flex items-center space-x-2">
+                <button id="btn-menu-open" title="Main Menu" class="glass-panel hover:bg-slate-800 text-sky-200 px-3.5 py-2 rounded-xl text-xs font-semibold transition shadow-md flex items-center space-x-1.5 border border-sky-500/20">
+                    <span>⚙️ Menu</span>
+                </button>
+
+                <button id="btn-tutorial" title="How to Play" class="glass-panel hover:bg-slate-800 text-sky-200 px-3.5 py-2 rounded-xl text-xs font-semibold transition shadow-md flex items-center space-x-1">
+                    <span>📖 Rules</span>
+                </button>
+
+                <button id="btn-firebase-modal" title="Multiplayer / Firebase Setup" class="glass-panel hover:bg-slate-800 text-amber-300 p-2.5 rounded-xl text-xs font-semibold transition shadow-md border border-amber-500/20">
+                    ⚡
+                </button>
+
+                <button id="btn-reset-cam" title="Reset Camera View" class="glass-panel hover:bg-slate-800 text-slate-200 p-2.5 rounded-xl text-xs font-semibold transition shadow-md">
+                    🎥
+                </button>
+
+                <button id="btn-instant-restart" title="Instant Restart Game" class="glass-panel hover:bg-slate-800 text-emerald-300 px-3.5 py-2 rounded-xl text-xs font-bold transition shadow-md border border-emerald-500/30">
+                    🔄 Restart
+                </button>
+            </div>
+        </div>
+
+        <!-- BOTTOM PANEL HUD (Instruction Banner & Actions) -->
+        <div class="flex flex-col items-center justify-end space-y-2 pointer-events-auto max-w-2xl mx-auto w-full pb-1">
+            <!-- God Ability Action Bar -->
+            <div id="god-ability-bar" class="hidden glass-panel px-4 py-2 rounded-2xl flex items-center space-x-3 shadow-xl border border-amber-500/30 mb-1">
+                <span id="god-ability-text" class="text-xs text-amber-200 font-semibold">Special Ability Available!</span>
+                <button id="btn-use-god-power" class="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow">
+                    Use Ability
+                </button>
+                <button id="btn-skip-god-power" class="px-3 py-1 rounded-lg text-xs font-semibold bg-slate-700 hover:bg-slate-600 text-slate-200 transition">
+                    Skip / End Turn
+                </button>
+            </div>
+
+            <!-- Bottom Instruction Banner -->
+            <div class="glass-panel w-full px-4 py-3 rounded-2xl shadow-2xl flex items-center justify-between gap-3 border border-sky-500/30">
+                <div class="flex items-center space-x-3">
+                    <div id="turn-badge" class="w-3.5 h-3.5 rounded-full bg-amber-500 animate-pulse shadow-md flex-shrink-0"></div>
+                    <div>
+                        <div id="turn-text" class="text-xs font-bold tracking-wider uppercase text-amber-300">P1 Turn</div>
+                        <div id="action-hint" class="text-xs text-slate-200 font-medium">Click on any empty square to place worker</div>
+                    </div>
+                </div>
+
+                <!-- Active God Card Badges in Bottom Bar -->
+                <div id="god-cards-hud" class="hidden sm:flex items-center space-x-2 border-l border-slate-700/60 pl-3">
+                    <div id="p1-god-badge" class="hidden flex items-center space-x-1.5 text-xs text-amber-300 font-semibold">
+                        <span>⚡ P1:</span> <span id="p1-god-name" class="text-slate-100 font-normal">Demeter</span>
+                    </div>
+                    <div id="p2-god-badge" class="hidden flex items-center space-x-1.5 text-xs text-sky-300 font-semibold">
+                        <span>⚡ P2:</span> <span id="p2-god-name" class="text-slate-100 font-normal">Prometheus</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- START MENU / INITIAL OVERLAY -->
+    <div id="modal-start-menu" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md transition-all">
+        <div class="glass-panel w-full max-w-lg rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col border border-sky-500/30 relative">
+            <div class="text-center mb-6">
+                <div class="inline-flex w-16 h-16 rounded-2xl bg-gradient-to-tr from-sky-500 via-blue-600 to-indigo-700 items-center justify-center font-cinzel font-black text-3xl text-white shadow-2xl border border-sky-300/40 mb-3">
+                    S
+                </div>
+                <h1 class="font-cinzel text-2xl md:text-3xl font-extrabold tracking-widest text-sky-200">SANTORINI 3D</h1>
+                <p class="text-xs text-slate-400 mt-1">Abstract 3D Strategy Game of Divine Heights</p>
+            </div>
+
+            <div class="space-y-4">
+                <!-- Mode Selection -->
+                <div>
+                    <label class="block text-xs font-semibold text-sky-300 uppercase tracking-wider mb-2">Select Game Mode</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button id="menu-btn-pass" class="p-3 rounded-2xl text-xs font-semibold border transition text-center border-sky-500 bg-sky-500/20 text-white shadow-md">
+                            👥 Local<br><span class="text-[10px] text-slate-300 font-normal">Pass & Play</span>
+                        </button>
+                        <button id="menu-btn-ai" class="p-3 rounded-2xl text-xs font-semibold border border-slate-700 bg-slate-900/60 text-slate-300 hover:border-slate-500 transition text-center">
+                            🤖 vs AI<br><span class="text-[10px] text-slate-400 font-normal">Solo Practice</span>
+                        </button>
+                        <button id="menu-btn-online" class="p-3 rounded-2xl text-xs font-semibold border border-slate-700 bg-slate-900/60 text-slate-300 hover:border-slate-500 transition text-center">
+                            ⚡ Online<br><span class="text-[10px] text-slate-400 font-normal">Firebase Rooms</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- God Card Settings -->
+                <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="font-semibold text-xs text-white uppercase tracking-wider">God Powers Expansion</div>
+                            <div class="text-[11px] text-slate-400">Play with legendary divine cards</div>
+                        </div>
+                        <input id="opt-god-powers" type="checkbox" class="w-5 h-5 rounded accent-sky-500 cursor-pointer">
+                    </div>
+
+                    <div id="god-select-section" class="space-y-2.5 pt-2 border-t border-slate-800 hidden">
+                        <div>
+                            <label class="block text-[11px] font-medium text-amber-300 mb-1">P1 God Power</label>
+                            <select id="p1-god-select" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200">
+                                <option value="Demeter">Demeter (Build twice - not same space)</option>
+                                <option value="Prometheus">Prometheus (Build before move if no climb)</option>
+                                <option value="Minotaur">Minotaur (Push opponent worker back)</option>
+                                <option value="Pan">Pan (Win by stepping down 2+ levels)</option>
+                                <option value="Athena">Athena (Opponents cannot move up next turn)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-[11px] font-medium text-sky-300 mb-1">P2 God Power</label>
+                            <select id="p2-god-select" class="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200">
+                                <option value="Prometheus">Prometheus (Build before move if no climb)</option>
+                                <option value="Demeter">Demeter (Build twice - not same space)</option>
+                                <option value="Minotaur">Minotaur (Push opponent worker back)</option>
+                                <option value="Pan">Pan (Win by stepping down 2+ levels)</option>
+                                <option value="Athena">Athena (Opponents cannot move up next turn)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Start & Rules Actions -->
+            <div class="mt-6 space-y-2">
+                <button id="btn-start-game" class="w-full py-3.5 rounded-2xl bg-gradient-to-r from-sky-500 via-blue-600 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 font-bold text-white text-sm shadow-xl transition-all">
+                    🎮 Start Match
+                </button>
+                <button id="btn-menu-rules" class="w-full py-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition">
+                    📖 How to Play Rules
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TUTORIAL MODAL (Fixed Dismissible Popup Drawer) -->
+    <div id="modal-tutorial" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md hidden transition-opacity">
+        <div class="glass-panel w-full max-w-xl max-h-[85vh] rounded-3xl p-6 shadow-2xl flex flex-col border border-sky-500/30 overflow-hidden relative">
+            <button id="close-tutorial" class="absolute top-5 right-5 text-slate-400 hover:text-white text-xl font-bold w-8 h-8 rounded-full bg-slate-800/60 flex items-center justify-center transition">✕</button>
+            
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="text-2xl">📖</span>
+                <h2 class="font-cinzel text-xl md:text-2xl font-bold text-sky-200">How to Play Santorini</h2>
+            </div>
+
+            <div class="overflow-y-auto space-y-4 pr-2 text-sm text-slate-300">
+                <div class="p-3.5 rounded-2xl bg-sky-950/40 border border-sky-500/20">
+                    <h3 class="font-semibold text-sky-300 mb-1">🎯 Objective</h3>
+                    <p>Be the first player to move one of your workers up onto <strong>Level 3</strong> (the top stone block before a dome is built).</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div class="p-3.5 rounded-2xl bg-slate-800/50 border border-slate-700/50">
+                        <h3 class="font-semibold text-amber-300 mb-1">1. Setup Phase</h3>
+                        <p class="text-xs">Each player places 2 workers anywhere on empty ground tiles on the 5x5 grid.</p>
+                    </div>
+
+                    <div class="p-3.5 rounded-2xl bg-slate-800/50 border border-slate-700/50">
+                        <h3 class="font-semibold text-sky-300 mb-1">2. Move Worker</h3>
+                        <p class="text-xs">Select one worker and move into an adjacent tile. You can move up max 1 level, but down any number of levels.</p>
+                    </div>
+
+                    <div class="p-3.5 rounded-2xl bg-slate-800/50 border border-slate-700/50">
+                        <h3 class="font-semibold text-indigo-300 mb-1">3. Build Block</h3>
+                        <p class="text-xs">Build a stone block or blue dome on an adjacent tile to the worker you just moved.</p>
+                    </div>
+
+                    <div class="p-3.5 rounded-2xl bg-slate-800/50 border border-slate-700/50">
+                        <h3 class="font-semibold text-emerald-300 mb-1">4. Domes & Blocking</h3>
+                        <p class="text-xs">Building on Level 3 creates a blue Dome. Domes cap tiles—no worker can move onto a dome!</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-5 pt-4 border-t border-slate-800 flex justify-end">
+                <button id="btn-tutorial-gotit" class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 font-semibold text-white text-sm hover:from-sky-400 transition shadow-lg">
+                    Got It, Let's Play!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE MULTIPLAYER MODAL -->
+    <div id="modal-firebase" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md hidden transition-opacity">
+        <div class="glass-panel w-full max-w-2xl max-h-[90vh] rounded-3xl p-6 shadow-2xl flex flex-col border border-amber-500/30 overflow-hidden relative">
+            <button id="close-firebase" class="absolute top-5 right-5 text-slate-400 hover:text-white text-xl font-bold w-8 h-8 rounded-full bg-slate-800/60 flex items-center justify-center transition">✕</button>
+
+            <div class="flex items-center space-x-3 mb-4">
+                <span class="text-2xl">⚡</span>
+                <div>
+                    <h2 class="font-cinzel text-xl font-bold text-amber-200">Online Multiplayer & Firebase</h2>
+                    <p class="text-xs text-slate-400">Play real-time online rooms using your free Firebase Realtime Database</p>
+                </div>
+            </div>
+
+            <div class="overflow-y-auto space-y-4 pr-1 text-sm text-slate-300">
+                <div class="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 space-y-3">
+                    <h3 class="font-semibold text-slate-200 text-xs uppercase tracking-wider">Join or Host Game Room</h3>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <input id="room-input" type="text" maxlength="6" placeholder="Enter 4-letter Room Code" class="px-4 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-amber-300 font-mono font-bold tracking-widest text-center uppercase focus:outline-none focus:border-amber-500 flex-1">
+                        <button id="btn-join-room" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 font-bold text-slate-950 text-xs transition shadow">
+                            Join Room
+                        </button>
+                        <button id="btn-create-room" class="px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 font-bold text-white text-xs transition shadow">
+                            Host New Room
+                        </button>
+                    </div>
+                    <p id="firebase-status-msg" class="text-xs font-mono text-slate-400 text-center">Ready to connect.</p>
+                </div>
+
+                <details class="group p-4 rounded-2xl bg-slate-900/60 border border-slate-800">
+                    <summary class="cursor-pointer font-semibold text-xs text-amber-300 uppercase tracking-wider flex items-center justify-between">
+                        <span>⚙️ Firebase Credentials Config</span>
+                        <span class="text-slate-500 group-open:rotate-180 transition-transform">▼</span>
+                    </summary>
+                    <div class="mt-4 space-y-3 pt-3 border-t border-slate-800/80">
+                        <div>
+                            <label class="block text-xs font-mono text-slate-400 mb-1">API Key (`apiKey`)</label>
+                            <input id="fb-apikey" type="text" placeholder="AIzaSy..." class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:border-amber-500 font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-mono text-slate-400 mb-1">Database URL (`databaseURL`)</label>
+                            <input id="fb-dburl" type="text" placeholder="https://your-app-default-rtdb.firebaseio.com" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:border-amber-500 font-mono">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-mono text-slate-400 mb-1">Project ID (`projectId`)</label>
+                            <input id="fb-projid" type="text" placeholder="your-project-id" class="w-full px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 text-xs text-slate-200 focus:border-amber-500 font-mono">
+                        </div>
+                        <button id="btn-save-fb" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-300 font-semibold text-xs border border-amber-500/20 transition">
+                            Save Configuration
+                        </button>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container" class="absolute inset-0"></div>
+
+    <script id="game-logic">
+    const BOARD_SIZE = 5;
+    const TILE_SIZE = 1.6;
+    const TILE_GAP = 0.15;
+    const TOTAL_CELL_SIZE = TILE_SIZE + TILE_GAP;
+
+    let gameState = {
+        board: Array(5).fill(0).map(() => Array(5).fill(0)),
+        workers: [],
+        activePlayer: 1,
+        phase: 'SETUP',
+        selectedWorker: null,
+        workersToPlace: 4,
+        gameMode: 'PASS',
+        
+        godPowersEnabled: false,
+        godCards: { 1: 'Demeter', 2: 'Prometheus' },
+        godState: {
+            firstBuildTile: null,
+            prometheusBuildDone: false,
+            athenaMovedUp: false
+        }
+    };
+
+    let firebaseApp = null, firebaseDB = null, currentRoomCode = null, myOnlinePlayerNumber = 1;
+    let scene, camera, renderer, controls;
+    let gridPlanes = [];
+    let cellHighlights = [];
+    let raycaster, mouse;
+    let selectorRing = null;
+    let boardDynamicObjects = [];
+
+    let matTile, matL1, matL2, matL3, matDome, matP1, matP2;
+
+    window.onload = function() {
+        initThree();
+        initMaterials();
+        buildBoard();
+        loadFirebaseConfigFromStorage();
+        setupEventListeners();
+        animate();
+    };
+
+    function initThree() {
+        const container = document.getElementById('canvas-container');
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x090d16);
+        scene.fog = new THREE.FogExp2(0x090d16, 0.025);
+
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 11, 11);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1;
+        container.appendChild(renderer.domElement);
+
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2.15;
+        controls.minDistance = 6;
+        controls.maxDistance = 22;
+        controls.target.set(0, 0, 0);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xfff5ea, 1.25);
+        dirLight.position.set(10, 18, 12);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 40;
+        const d = 8;
+        dirLight.shadow.camera.left = -d;
+        dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d;
+        dirLight.shadow.camera.bottom = -d;
+        scene.add(dirLight);
+
+        const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.45);
+        fillLight.position.set(-10, 10, -10);
+        scene.add(fillLight);
+
+        raycaster = new THREE.Raycaster();
+        mouse = new THREE.Vector2();
+    }
+
+    function initMaterials() {
+        matTile = new THREE.MeshStandardMaterial({ color: 0x10b981, roughness: 0.6, metalness: 0.1 });
+        matL1 = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.5, metalness: 0.1 });
+        matL2 = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.4, metalness: 0.15 });
+        matL3 = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.3, metalness: 0.2 });
+        matDome = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.2, metalness: 0.3 });
+        matP1 = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.3, metalness: 0.2 });
+        matP2 = new THREE.MeshStandardMaterial({ color: 0x0ea5e9, roughness: 0.3, metalness: 0.2 });
+    }
+
+    function buildBoard() {
+        const baseGeo = new THREE.BoxGeometry(9.3, 0.6, 9.3);
+        const baseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.8 });
+        const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+        baseMesh.position.y = -0.35;
+        baseMesh.receiveShadow = true;
+        scene.add(baseMesh);
+
+        const seaGeo = new THREE.BoxGeometry(16, 0.2, 16);
+        const seaMat = new THREE.MeshStandardMaterial({ color: 0x0369a1, roughness: 0.1, metalness: 0.6, transparent: true, opacity: 0.85 });
+        const seaMesh = new THREE.Mesh(seaGeo, seaMat);
+        seaMesh.position.y = -0.7;
+        scene.add(seaMesh);
+
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            gridPlanes[r] = [];
+            cellHighlights[r] = [];
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                const x = (c - 2) * TOTAL_CELL_SIZE;
+                const z = (r - 2) * TOTAL_CELL_SIZE;
+
+                const tileGeo = new THREE.BoxGeometry(TILE_SIZE, 0.1, TILE_SIZE);
+                const tileMesh = new THREE.Mesh(tileGeo, matTile);
+                tileMesh.position.set(x, -0.05, z);
+                tileMesh.receiveShadow = true;
+                scene.add(tileMesh);
+
+                const planeGeo = new THREE.PlaneGeometry(TILE_SIZE, TILE_SIZE);
+                planeGeo.rotateX(-Math.PI / 2);
+                const planeMat = new THREE.MeshBasicMaterial({ visible: false });
+                const raycastPlane = new THREE.Mesh(planeGeo, planeMat);
+                raycastPlane.position.set(x, 0.05, z);
+                raycastPlane.userData = { r, c };
+                scene.add(raycastPlane);
+                gridPlanes[r][c] = raycastPlane;
+
+                const discGeo = new THREE.RingGeometry(0.2, 0.68, 32);
+                discGeo.rotateX(-Math.PI / 2);
+                const discMat = new THREE.MeshBasicMaterial({
+                    color: 0x00ffff,
+                    transparent: true,
+                    opacity: 0,
+                    depthWrite: false,
+                    side: THREE.DoubleSide
+                });
+                const discMesh = new THREE.Mesh(discGeo, discMat);
+                discMesh.position.set(x, 0.08, z);
+                scene.add(discMesh);
+                cellHighlights[r][c] = discMesh;
+            }
+        }
+
+        const ringGeo = new THREE.RingGeometry(0.68, 0.78, 32);
+        ringGeo.rotateX(-Math.PI / 2);
+        const ringMat = new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide, transparent: true, opacity: 0.95 });
+        selectorRing = new THREE.Mesh(ringGeo, ringMat);
+        selectorRing.visible = false;
+        scene.add(selectorRing);
+    }
+
+    function createBuildingBlock(level) {
+        const group = new THREE.Group();
+        if (level === 1) {
+            const main = new THREE.Mesh(new THREE.BoxGeometry(1.45, 0.55, 1.45), matL1);
+            main.position.y = 0.275;
+            main.castShadow = true;
+            main.receiveShadow = true;
+            group.add(main);
+        } else if (level === 2) {
+            const core = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.55, 1.2), matL2);
+            core.position.y = 0.275;
+            core.castShadow = true;
+            core.receiveShadow = true;
+            group.add(core);
+
+            const colGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.58, 12);
+            const offsets = [-0.58, 0.58];
+            offsets.forEach(ox => {
+                offsets.forEach(oz => {
+                    const col = new THREE.Mesh(colGeo, matL2);
+                    col.position.set(ox, 0.29, oz);
+                    col.castShadow = true;
+                    group.add(col);
+                });
+            });
+        } else if (level === 3) {
+            const topBlock = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.5, 1.15), matL3);
+            topBlock.position.y = 0.25;
+            topBlock.castShadow = true;
+            topBlock.receiveShadow = true;
+            group.add(topBlock);
+        } else if (level === 4) {
+            const domeGeo = new THREE.SphereGeometry(0.55, 24, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+            const dome = new THREE.Mesh(domeGeo, matDome);
+            dome.position.y = 0.02;
+            dome.castShadow = true;
+            group.add(dome);
+        }
+        return group;
+    }
+
+    function createWorkerMesh(player) {
+        const group = new THREE.Group();
+        const mat = player === 1 ? matP1 : matP2;
+
+        const bodyGeo = new THREE.CylinderGeometry(0.28, 0.38, 0.65, 20);
+        const body = new THREE.Mesh(bodyGeo, mat);
+        body.position.y = 0.325;
+        body.castShadow = true;
+        group.add(body);
+
+        const headGeo = new THREE.SphereGeometry(0.26, 20, 16);
+        const headMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+        const head = new THREE.Mesh(headGeo, headMat);
+        head.position.y = 0.72;
+        head.castShadow = true;
+        group.add(head);
+
+        const capGeo = new THREE.SphereGeometry(0.09, 12, 12);
+        const cap = new THREE.Mesh(capGeo, mat);
+        cap.position.y = 0.95;
+        group.add(cap);
+
+        return group;
+    }
+
+    function setupEventListeners() {
+        window.addEventListener('resize', onWindowResize);
+        window.addEventListener('pointerdown', onPointerDown);
+
+        document.getElementById('btn-reset-cam').onclick = () => {
+            controls.reset();
+            camera.position.set(0, 11, 11);
+            controls.target.set(0, 0, 0);
+        };
+
+        const modalTutorial = document.getElementById('modal-tutorial');
+        document.getElementById('btn-tutorial').onclick = () => modalTutorial.classList.remove('hidden');
+        document.getElementById('btn-menu-rules').onclick = () => modalTutorial.classList.remove('hidden');
+        document.getElementById('close-tutorial').onclick = () => modalTutorial.classList.add('hidden');
+        document.getElementById('btn-tutorial-gotit').onclick = () => modalTutorial.classList.add('hidden');
+
+        // Start Menu Overlay Events
+        const startMenu = document.getElementById('modal-start-menu');
+        document.getElementById('btn-menu-open').onclick = () => startMenu.classList.remove('hidden');
+
+        document.getElementById('menu-btn-pass').onclick = () => selectMenuMode('PASS');
+        document.getElementById('menu-btn-ai').onclick = () => selectMenuMode('AI');
+        document.getElementById('menu-btn-online').onclick = () => {
+            selectMenuMode('ONLINE');
+            document.getElementById('modal-firebase').classList.remove('hidden');
+        };
+
+        document.getElementById('opt-god-powers').onchange = (e) => {
+            document.getElementById('god-select-section').classList.toggle('hidden', !e.target.checked);
+        };
+
+        document.getElementById('btn-start-game').onclick = () => {
+            startMenu.classList.add('hidden');
+            gameState.godPowersEnabled = document.getElementById('opt-god-powers').checked;
+            if (gameState.godPowersEnabled) {
+                gameState.godCards[1] = document.getElementById('p1-god-select').value;
+                gameState.godCards[2] = document.getElementById('p2-god-select').value;
+            }
+            resetGame();
+        };
+
+        document.getElementById('btn-instant-restart').onclick = () => {
+            resetGame();
+        };
+
+        const modalFirebase = document.getElementById('modal-firebase');
+        document.getElementById('btn-firebase-modal').onclick = () => modalFirebase.classList.remove('hidden');
+        document.getElementById('close-firebase').onclick = () => modalFirebase.classList.add('hidden');
+        document.getElementById('btn-save-fb').onclick = saveFirebaseConfig;
+        document.getElementById('btn-create-room').onclick = createOnlineRoom;
+        document.getElementById('btn-join-room').onclick = joinOnlineRoom;
+
+        document.getElementById('btn-use-god-power').onclick = handleUseGodPower;
+        document.getElementById('btn-skip-god-power').onclick = handleSkipGodPower;
+    }
+
+    function selectMenuMode(mode) {
+        gameState.gameMode = mode;
+        const btnPass = document.getElementById('menu-btn-pass');
+        const btnAi = document.getElementById('menu-btn-ai');
+        const btnOnline = document.getElementById('menu-btn-online');
+
+        [btnPass, btnAi, btnOnline].forEach(b => b.className = "p-3 rounded-2xl text-xs font-semibold border border-slate-700 bg-slate-900/60 text-slate-300 hover:border-slate-500 transition text-center");
+
+        if (mode === 'PASS') btnPass.className = "p-3 rounded-2xl text-xs font-semibold border border-sky-500 bg-sky-500/20 text-white shadow-md text-center";
+        if (mode === 'AI') btnAi.className = "p-3 rounded-2xl text-xs font-semibold border border-sky-500 bg-sky-500/20 text-white shadow-md text-center";
+        if (mode === 'ONLINE') btnOnline.className = "p-3 rounded-2xl text-xs font-semibold border border-sky-500 bg-sky-500/20 text-white shadow-md text-center";
+
+        document.getElementById('hud-mode-display').innerText = mode === 'PASS' ? 'Local Pass & Play' : (mode === 'AI' ? 'vs AI Bot' : 'Online Room');
+    }
+
+    function onPointerDown(event) {
+        if (event.target.closest('#ui-container') || event.target.closest('.fixed')) return;
+
+        if (gameState.gameMode === 'ONLINE' && gameState.activePlayer !== myOnlinePlayerNumber) return;
+
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+
+        const planeList = gridPlanes.flat();
+        const intersects = raycaster.intersectObjects(planeList, false);
+
+        if (intersects.length > 0) {
+            const hitPlane = intersects[0].object;
+            const { r, c } = hitPlane.userData;
+            handleCellClick(r, c);
+        }
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function handleCellClick(r, c) {
+        if (gameState.phase === 'FINISHED') return;
+
+        if (gameState.phase === 'SETUP') {
+            handleSetupClick(r, c);
+        } else if (gameState.phase === 'SELECT') {
+            handleSelectClick(r, c);
+        } else if (gameState.phase === 'MOVE') {
+            handleMoveClick(r, c);
+        } else if (gameState.phase === 'BUILD') {
+            handleBuildClick(r, c);
+        }
+    }
+
+    function handleSetupClick(r, c) {
+        if (isOccupied(r, c)) return;
+
+        const p = gameState.activePlayer;
+        const workerMesh = createWorkerMesh(p);
+        const height = getTileHeight(r, c);
+        const x = (c - 2) * TOTAL_CELL_SIZE;
+        const z = (r - 2) * TOTAL_CELL_SIZE;
+        workerMesh.position.set(x, height, z);
+        scene.add(workerMesh);
+        boardDynamicObjects.push(workerMesh);
+
+        gameState.workers.push({ id: gameState.workers.length, player: p, r, c, mesh: workerMesh });
+
+        gameState.workersToPlace--;
+        if (gameState.workersToPlace === 2) {
+            gameState.activePlayer = 2;
+        } else if (gameState.workersToPlace === 0) {
+            gameState.activePlayer = 1;
+            gameState.phase = 'SELECT';
+        }
+
+        clearHighlights();
+        updateUI();
+        syncGameStateToNetwork();
+
+        if (gameState.gameMode === 'AI' && gameState.activePlayer === 2 && gameState.phase === 'SETUP') {
+            setTimeout(executeAIMove, 500);
+        }
+    }
+
+    function handleSelectClick(r, c) {
+        const worker = gameState.workers.find(w => w.r === r && w.c === c && w.player === gameState.activePlayer);
+        if (worker) selectWorker(worker);
+    }
+
+    function selectWorker(worker) {
+        gameState.selectedWorker = worker;
+        gameState.phase = 'MOVE';
+        gameState.godState.prometheusBuildDone = false;
+
+        if (isGodActive('Prometheus')) {
+            showGodPrompt("Prometheus: Build BEFORE moving? (Must not move upward)");
+        }
+
+        const validMoves = getValidMoves(worker.r, worker.c);
+        if (validMoves.length === 0 && !gameState.godState.prometheusBuildDone) {
+            const otherWorker = gameState.workers.find(w => w.player === gameState.activePlayer && w.id !== worker.id);
+            const otherMoves = otherWorker ? getValidMoves(otherWorker.r, otherWorker.c) : [];
+            if (otherMoves.length === 0) {
+                endGame(gameState.activePlayer === 1 ? 2 : 1, "No valid moves available!");
+                return;
+            }
+        }
+
+        highlightTiles(validMoves, 0x22c55e);
+        updateSelectorRing(worker.r, worker.c);
+        updateUI();
+    }
+
+    function handleMoveClick(r, c) {
+        const workerOnCell = gameState.workers.find(w => w.r === r && w.c === c && w.player === gameState.activePlayer);
+        if (workerOnCell && !gameState.godState.prometheusBuildDone) {
+            selectWorker(workerOnCell);
+            return;
+        }
+
+        const validMoves = getValidMoves(gameState.selectedWorker.r, gameState.selectedWorker.c);
+        const isValid = validMoves.some(m => m.r === r && m.c === c);
+
+        if (!isValid) return;
+
+        const worker = gameState.selectedWorker;
+        const startLevel = gameState.board[worker.r][worker.c];
+
+        if (isGodActive('Minotaur')) {
+            const opponentWorker = gameState.workers.find(w => w.r === r && w.c === c && w.player !== worker.player);
+            if (opponentWorker) {
+                const pushR = r + (r - worker.r);
+                const pushC = c + (c - worker.c);
+                opponentWorker.r = pushR;
+                opponentWorker.c = pushC;
+                opponentWorker.mesh.position.set(
+                    (pushC - 2) * TOTAL_CELL_SIZE,
+                    getTileHeight(pushR, pushC),
+                    (pushR - 2) * TOTAL_CELL_SIZE
+                );
+            }
+        }
+
+        worker.r = r;
+        worker.c = c;
+        const targetHeight = getTileHeight(r, c);
+        worker.mesh.position.set((c - 2) * TOTAL_CELL_SIZE, targetHeight, (r - 2) * TOTAL_CELL_SIZE);
+
+        const endLevel = gameState.board[r][c];
+
+        if ((startLevel < 3 && endLevel === 3) || (isGodActive('Pan') && startLevel - endLevel >= 2)) {
+            endGame(gameState.activePlayer, "Reached Level 3 or Pan Drop Win!");
+            return;
+        }
+
+        if (isGodActive('Athena')) {
+            gameState.godState.athenaMovedUp = (endLevel > startLevel);
+        }
+
+        hideGodPrompt();
+
+        gameState.phase = 'BUILD';
+        gameState.godState.firstBuildTile = null;
+
+        const validBuilds = getValidBuilds(r, c);
+        if (validBuilds.length === 0) {
+            endGame(gameState.activePlayer === 1 ? 2 : 1, "Trapped! Cannot build anywhere.");
+            return;
+        }
+
+        highlightTiles(validBuilds, 0x3b82f6);
+        updateSelectorRing(r, c);
+        updateUI();
+        syncGameStateToNetwork();
+    }
+
+    function handleBuildClick(r, c) {
+        const validBuilds = getValidBuilds(gameState.selectedWorker.r, gameState.selectedWorker.c);
+        const isValid = validBuilds.some(b => b.r === r && b.c === c);
+
+        if (!isValid) return;
+
+        if (gameState.phase === 'MOVE' && isGodActive('Prometheus')) {
+            executeBuildTile(r, c);
+            gameState.godState.prometheusBuildDone = true;
+            hideGodPrompt();
+            const validMoves = getValidMoves(gameState.selectedWorker.r, gameState.selectedWorker.c);
+            highlightTiles(validMoves, 0x22c55e);
+            return;
+        }
+
+        executeBuildTile(r, c);
+
+        if (isGodActive('Demeter') && !gameState.godState.firstBuildTile) {
+            gameState.godState.firstBuildTile = { r, c };
+            const secondBuilds = getValidBuilds(gameState.selectedWorker.r, gameState.selectedWorker.c);
+            if (secondBuilds.length > 0) {
+                highlightTiles(secondBuilds, 0x3b82f6);
+                showGodPrompt("Demeter: Build one extra block? (Cannot be same tile)");
+                return;
+            }
+        }
+
+        finishTurn();
+    }
+
+    function executeBuildTile(r, c) {
+        const currentLvl = gameState.board[r][c];
+        const nextLvl = currentLvl + 1;
+        gameState.board[r][c] = nextLvl;
+
+        const block = createBuildingBlock(nextLvl);
+        block.position.set((c - 2) * TOTAL_CELL_SIZE, getBuildingOffset(currentLvl), (r - 2) * TOTAL_CELL_SIZE);
+        scene.add(block);
+        boardDynamicObjects.push(block);
+    }
+
+    function finishTurn() {
+        hideGodPrompt();
+        gameState.selectedWorker = null;
+        gameState.activePlayer = gameState.activePlayer === 1 ? 2 : 1;
+        gameState.phase = 'SELECT';
+
+        clearHighlights();
+        updateSelectorRing(null, null);
+        updateUI();
+        syncGameStateToNetwork();
+
+        if (gameState.gameMode === 'AI' && gameState.activePlayer === 2 && gameState.phase !== 'FINISHED') {
+            setTimeout(executeAIMove, 600);
+        }
+    }
+
+    function getValidMoves(r, c) {
+        const moves = [];
+        const currentHeight = gameState.board[r][c];
+
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                const nr = r + dr;
+                const nc = c + dc;
+
+                if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                    const targetHeight = gameState.board[nr][nc];
+                    
+                    if (gameState.godPowersEnabled && gameState.godState.athenaMovedUp && gameState.activePlayer !== getPlayerForGod('Athena')) {
+                        if (targetHeight > currentHeight) continue;
+                    }
+
+                    if (gameState.godState.prometheusBuildDone && targetHeight > currentHeight) {
+                        continue;
+                    }
+
+                    if (isGodActive('Minotaur')) {
+                        const oppWorker = gameState.workers.find(w => w.r === nr && w.c === nc && w.player !== gameState.activePlayer);
+                        if (oppWorker) {
+                            const pushR = nr + dr;
+                            const pushC = nc + dc;
+                            if (pushR >= 0 && pushR < BOARD_SIZE && pushC >= 0 && pushC < BOARD_SIZE) {
+                                if (gameState.board[pushR][pushC] < 4 && !isOccupied(pushR, pushC)) {
+                                    moves.push({ r: nr, c: nc });
+                                }
+                            }
+                            continue;
+                        }
+                    }
+
+                    if (targetHeight < 4 && targetHeight <= currentHeight + 1 && !isOccupied(nr, nc)) {
+                        moves.push({ r: nr, c: nc });
+                    }
+                }
+            }
+        }
+        return moves;
+    }
+
+    function getValidBuilds(r, c) {
+        const builds = [];
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                if (dr === 0 && dc === 0) continue;
+                const nr = r + dr;
+                const nc = c + dc;
+
+                if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
+                    if (gameState.godState.firstBuildTile && gameState.godState.firstBuildTile.r === nr && gameState.godState.firstBuildTile.c === nc) {
+                        continue;
+                    }
+
+                    if (gameState.board[nr][nc] < 4 && !isOccupied(nr, nc)) {
+                        builds.push({ r: nr, c: nc });
+                    }
+                }
+            }
+        }
+        return builds;
+    }
+
+    function isGodActive(powerName) {
+        return gameState.godPowersEnabled && gameState.godCards[gameState.activePlayer] === powerName;
+    }
+
+    function getPlayerForGod(powerName) {
+        if (gameState.godCards[1] === powerName) return 1;
+        if (gameState.godCards[2] === powerName) return 2;
+        return 0;
+    }
+
+    function showGodPrompt(text) {
+        document.getElementById('god-ability-text').innerText = text;
+        document.getElementById('god-ability-bar').classList.remove('hidden');
+    }
+
+    function hideGodPrompt() {
+        document.getElementById('god-ability-bar').classList.add('hidden');
+    }
+
+    function handleUseGodPower() {
+        if (isGodActive('Prometheus') && gameState.phase === 'MOVE') {
+            const builds = getValidBuilds(gameState.selectedWorker.r, gameState.selectedWorker.c);
+            highlightTiles(builds, 0x3b82f6);
+            showGodPrompt("Prometheus: Select an adjacent space to build BEFORE moving");
+        }
+    }
+
+    function handleSkipGodPower() {
+        if (isGodActive('Demeter') && gameState.godState.firstBuildTile) {
+            finishTurn();
+        } else if (isGodActive('Prometheus') && gameState.phase === 'MOVE') {
+            hideGodPrompt();
+        }
+    }
+
+    function isOccupied(r, c) {
+        return gameState.workers.some(w => w.r === r && w.c === c);
+    }
+
+    function getTileHeight(r, c) {
+        const lvl = gameState.board[r][c];
+        if (lvl === 0) return 0;
+        if (lvl === 1) return 0.55;
+        if (lvl === 2) return 1.10;
+        if (lvl === 3) return 1.60;
+        return 1.62;
+    }
+
+    function getBuildingOffset(currentLvl) {
+        if (currentLvl === 0) return 0;
+        if (currentLvl === 1) return 0.55;
+        if (currentLvl === 2) return 1.10;
+        if (currentLvl === 3) return 1.60;
+        return 0;
+    }
+
+    function highlightTiles(coords, colorHex) {
+        clearHighlights();
+        coords.forEach(({ r, c }) => {
+            const disc = cellHighlights[r][c];
+            disc.material.color.setHex(colorHex);
+            disc.material.opacity = 0.65;
+            disc.position.y = getTileHeight(r, c) + 0.03;
+        });
+    }
+
+    function clearHighlights() {
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                cellHighlights[r][c].material.opacity = 0;
+            }
+        }
+    }
+
+    function updateSelectorRing(r, c) {
+        if (r === null || c === null) {
+            selectorRing.visible = false;
+            return;
+        }
+        const x = (c - 2) * TOTAL_CELL_SIZE;
+        const z = (r - 2) * TOTAL_CELL_SIZE;
+        const y = getTileHeight(r, c) + 0.04;
+        selectorRing.position.set(x, y, z);
+        selectorRing.visible = true;
+    }
+
+    function executeAIMove() {
+        if (gameState.phase === 'SETUP') {
+            let r, c;
+            do {
+                r = Math.floor(Math.random() * 5);
+                c = Math.floor(Math.random() * 5);
+            } while (isOccupied(r, c));
+            handleSetupClick(r, c);
+            return;
+        }
+
+        const aiWorkers = gameState.workers.filter(w => w.player === 2);
+        let bestOption = null;
+
+        for (const worker of aiWorkers) {
+            const moves = getValidMoves(worker.r, worker.c);
+            for (const move of moves) {
+                const targetLvl = gameState.board[move.r][move.c];
+                const startLvl = gameState.board[worker.r][worker.c];
+
+                let score = targetLvl * 10;
+                if (startLvl === 2 && targetLvl === 3) score += 1000;
+
+                const builds = getValidBuilds(move.r, move.c);
+                if (builds.length > 0) {
+                    if (!bestOption || score > bestOption.score) {
+                        bestOption = { worker, move, builds, score };
+                    }
+                }
+            }
+        }
+
+        if (bestOption) {
+            selectWorker(bestOption.worker);
+            setTimeout(() => {
+                handleMoveClick(bestOption.move.r, bestOption.move.c);
+                setTimeout(() => {
+                    const builds = getValidBuilds(bestOption.worker.r, bestOption.worker.c);
+                    if (builds.length > 0) {
+                        const targetBuild = builds.sort((a, b) => gameState.board[b.r][b.c] - gameState.board[a.r][a.c])[0];
+                        handleBuildClick(targetBuild.r, targetBuild.c);
+                    }
+                }, 400);
+            }, 400);
+        } else {
+            endGame(1, "AI has no legal moves!");
+        }
+    }
+
+    function updateUI() {
+        const badgeEl = document.getElementById('turn-badge');
+        const turnTextEl = document.getElementById('turn-text');
+        const hintEl = document.getElementById('action-hint');
+
+        const pName = gameState.activePlayer === 1 ? 'Player 1 (Orange)' : (gameState.gameMode === 'AI' ? 'AI Bot (Blue)' : 'Player 2 (Blue)');
+        badgeEl.className = `w-3.5 h-3.5 rounded-full ${gameState.activePlayer === 1 ? 'bg-amber-500' : 'bg-sky-400'} animate-pulse shadow-md flex-shrink-0`;
+        turnTextEl.innerText = `${pName}'s Turn`;
+        turnTextEl.className = `text-xs font-bold tracking-wider uppercase ${gameState.activePlayer === 1 ? 'text-amber-300' : 'text-sky-300'}`;
+
+        if (gameState.godPowersEnabled) {
+            document.getElementById('god-cards-hud').classList.remove('hidden');
+            document.getElementById('p1-god-badge').classList.remove('hidden');
+            document.getElementById('p2-god-badge').classList.remove('hidden');
+            document.getElementById('p1-god-name').innerText = gameState.godCards[1];
+            document.getElementById('p2-god-name').innerText = gameState.godCards[2];
+        } else {
+            document.getElementById('god-cards-hud').classList.add('hidden');
+        }
+
+        if (gameState.phase === 'SETUP') {
+            hintEl.innerText = `Click any green square to place worker (${gameState.workersToPlace} left)`;
+        } else if (gameState.phase === 'SELECT') {
+            hintEl.innerText = `Click one of your workers to begin turn`;
+        } else if (gameState.phase === 'MOVE') {
+            hintEl.innerText = `Click green disc to move worker (+1 lvl max)`;
+        } else if (gameState.phase === 'BUILD') {
+            hintEl.innerText = `Click blue disc adjacent to worker to build`;
+        }
+    }
+
+    function endGame(winner, reason) {
+        gameState.phase = 'FINISHED';
+        clearHighlights();
+        updateSelectorRing(null, null);
+
+        const wName = winner === 1 ? 'Player 1 (Orange)' : 'Player 2 (Blue)';
+        document.getElementById('turn-text').innerText = '🎉 Game Over!';
+        document.getElementById('action-hint').innerHTML = `<strong class="text-amber-300 font-bold">${wName} WINS!</strong> - ${reason}`;
+    }
+
+    function resetGame() {
+        boardDynamicObjects.forEach(obj => scene.remove(obj));
+        boardDynamicObjects = [];
+
+        gameState.board = Array(5).fill(0).map(() => Array(5).fill(0));
+        gameState.workers = [];
+        gameState.activePlayer = 1;
+        gameState.phase = 'SETUP';
+        gameState.selectedWorker = null;
+        gameState.workersToPlace = 4;
+        gameState.godState = {
+            firstBuildTile: null,
+            prometheusBuildDone: false,
+            athenaMovedUp: false
+        };
+
+        clearHighlights();
+        updateSelectorRing(null, null);
+        hideGodPrompt();
+        updateUI();
+
+        if (gameState.gameMode === 'ONLINE') {
+            syncGameStateToNetwork();
+        }
+    }
+
+    function loadFirebaseConfigFromStorage() {
+        const storedKey = localStorage.getItem('santorini_fb_key');
+        const storedUrl = localStorage.getItem('santorini_fb_url');
+        const storedProj = localStorage.getItem('santorini_fb_proj');
+
+        if (storedKey && storedUrl) {
+            document.getElementById('fb-apikey').value = storedKey;
+            document.getElementById('fb-dburl').value = storedUrl;
+            document.getElementById('fb-projid').value = storedProj || '';
+            initFirebase(storedKey, storedUrl, storedProj);
+        }
+    }
+
+    function saveFirebaseConfig() {
+        const key = document.getElementById('fb-apikey').value.trim();
+        const url = document.getElementById('fb-dburl').value.trim();
+        const proj = document.getElementById('fb-projid').value.trim();
+
+        if (!key || !url) {
+            alert('Please provide at least an API Key and Database URL.');
+            return;
+        }
+
+        localStorage.setItem('santorini_fb_key', key);
+        localStorage.setItem('santorini_fb_url', url);
+        localStorage.setItem('santorini_fb_proj', proj);
+
+        initFirebase(key, url, proj);
+        document.getElementById('firebase-status-msg').innerText = '✅ Firebase Configuration Saved!';
+    }
+
+    function initFirebase(apiKey, databaseURL, projectId) {
+        try {
+            if (!firebase.apps.length) {
+                firebaseApp = firebase.initializeApp({ apiKey, databaseURL, projectId });
+            } else {
+                firebaseApp = firebase.app();
+            }
+            firebaseDB = firebase.database();
+            document.getElementById('firebase-status-msg').innerText = '⚡ Connected to Firebase RTDB';
+        } catch (err) {
+            console.error(err);
+            document.getElementById('firebase-status-msg').innerText = '❌ Firebase Connection Error';
+        }
+    }
+
+    function createOnlineRoom() {
+        if (!firebaseDB) {
+            alert('Please configure Firebase credentials first!');
+            return;
+        }
+        const code = Math.random().toString(36).substring(2, 6).toUpperCase();
+        currentRoomCode = code;
+        myOnlinePlayerNumber = 1;
+
+        document.getElementById('room-code-display').innerText = code;
+        document.getElementById('room-indicator').classList.remove('hidden');
+        document.getElementById('modal-firebase').classList.add('hidden');
+
+        selectMenuMode('ONLINE');
+        listenToRoomSync(code);
+    }
+
+    function joinOnlineRoom() {
+        const code = document.getElementById('room-input').value.trim().toUpperCase();
+        if (code.length < 4) {
+            alert('Enter a valid 4-letter room code.');
+            return;
+        }
+        currentRoomCode = code;
+        myOnlinePlayerNumber = 2;
+
+        document.getElementById('room-code-display').innerText = code;
+        document.getElementById('room-indicator').classList.remove('hidden');
+        document.getElementById('modal-firebase').classList.add('hidden');
+
+        selectMenuMode('ONLINE');
+        listenToRoomSync(code);
+    }
+
+    function syncGameStateToNetwork() {
+        if (gameState.gameMode !== 'ONLINE' || !firebaseDB || !currentRoomCode) return;
+
+        const payload = {
+            board: gameState.board,
+            activePlayer: gameState.activePlayer,
+            phase: gameState.phase,
+            workersToPlace: gameState.workersToPlace,
+            workers: gameState.workers.map(w => ({ id: w.id, player: w.player, r: w.r, c: w.c })),
+            godPowersEnabled: gameState.godPowersEnabled,
+            godCards: gameState.godCards
+        };
+
+        firebaseDB.ref(`rooms/${currentRoomCode}`).set(payload);
+    }
+
+    function listenToRoomSync(code) {
+        if (!firebaseDB) return;
+        firebaseDB.ref(`rooms/${code}`).on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (!data) return;
+
+            if (JSON.stringify(data.board) !== JSON.stringify(gameState.board)) {
+                rebuildBoardFromNetworkState(data);
+            }
+        });
+    }
+
+    function rebuildBoardFromNetworkState(data) {
+        boardDynamicObjects.forEach(obj => scene.remove(obj));
+        boardDynamicObjects = [];
+
+        gameState.board = data.board;
+        gameState.activePlayer = data.activePlayer;
+        gameState.phase = data.phase;
+        gameState.workersToPlace = data.workersToPlace;
+        gameState.godPowersEnabled = data.godPowersEnabled || false;
+        if (data.godCards) gameState.godCards = data.godCards;
+
+        for (let r = 0; r < BOARD_SIZE; r++) {
+            for (let c = 0; c < BOARD_SIZE; c++) {
+                const height = data.board[r][c];
+                for (let lvl = 1; lvl <= height; lvl++) {
+                    const block = createBuildingBlock(lvl);
+                    block.position.set((c - 2) * TOTAL_CELL_SIZE, getBuildingOffset(lvl - 1), (r - 2) * TOTAL_CELL_SIZE);
+                    scene.add(block);
+                    boardDynamicObjects.push(block);
+                }
+            }
+        }
+
+        gameState.workers = [];
+        if (data.workers) {
+            data.workers.forEach(w => {
+                const mesh = createWorkerMesh(w.player);
+                mesh.position.set((w.c - 2) * TOTAL_CELL_SIZE, getTileHeight(w.r, w.c), (w.r - 2) * TOTAL_CELL_SIZE);
+                scene.add(mesh);
+                boardDynamicObjects.push(mesh);
+                gameState.workers.push({ ...w, mesh });
+            });
+        }
+
+        updateUI();
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+
+        if (selectorRing && selectorRing.visible) {
+            selectorRing.rotation.z += 0.02;
+        }
+
+        renderer.render(scene, camera);
+    }
+    </script>
+</body>
+</html>
