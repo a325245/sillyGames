@@ -264,7 +264,7 @@
     // Firebase synchronization
     let firebaseDb = null;
     let currentRoomRef = null;
-    let lastLocalWriteTimestamp = 0;
+    let localLastUpdated = 0;
     let hasCelebratedWin = false;
 
     // Three.js scene references
@@ -431,18 +431,18 @@
         roughness: 0.9,
       });
       const island = new THREE.Mesh(islandGeo, islandMat);
-      island.position.y = -1;
+      island.position.y = -1.2;
       island.receiveShadow = true;
       scene.add(island);
 
-      // Lawn Top Platform
+      // Lawn Top Platform (Lowered slightly to prevent z-fighting)
       const lawnGeo = new THREE.BoxGeometry(11.8, 0.4, 11.8);
       const lawnMat = new THREE.MeshStandardMaterial({
         color: 0x2e7d32,
         roughness: 0.6
       });
       const lawn = new THREE.Mesh(lawnGeo, lawnMat);
-      lawn.position.y = -0.2;
+      lawn.position.y = -0.22;
       lawn.receiveShadow = true;
       scene.add(lawn);
     }
@@ -610,19 +610,19 @@
           const x = (c - 2) * STEP_SIZE;
           const z = (r - 2) * STEP_SIZE;
 
-          // Level 0 Tile Surface
+          // Level 0 Tile Surface (Raised to y = 0.11 to prevent z-fighting with base lawn)
           const tileGeo = new THREE.BoxGeometry(TILE_SIZE, 0.2, TILE_SIZE);
           const tileMat = new THREE.MeshStandardMaterial({
             color: 0x81c784, // Lawn green tile top
             roughness: 0.5
           });
           const tile = new THREE.Mesh(tileGeo, tileMat);
-          tile.position.set(x, 0.1, z);
+          tile.position.set(x, 0.11, z);
           tile.receiveShadow = true;
           tile.userData = { r, c };
           boardGroup.add(tile);
 
-          let currentY = 0.2;
+          let currentY = 0.21;
 
           // Level 1 Building
           if (cell.level >= 1) {
@@ -740,13 +740,13 @@
       });
       const mesh = new THREE.Mesh(geo, mat);
       mesh.rotation.x = -Math.PI / 2;
-      mesh.position.set(x, yHeight + 0.02, z);
+      mesh.position.set(x, yHeight + 0.03, z);
       highlightGroup.add(mesh);
     }
 
     function getCellSurfaceHeight(r, c) {
       const cell = boardState[r][c];
-      let y = 0.2;
+      let y = 0.21;
       if (cell.level >= 1) y += 0.9;
       if (cell.level >= 2) y += 0.9;
       if (cell.level >= 3) y += 0.85;
@@ -986,7 +986,7 @@
       }
 
       const now = Date.now();
-      lastLocalWriteTimestamp = now;
+      localLastUpdated = now;
 
       const payload = {
         flatBoard,
@@ -1028,6 +1028,9 @@
         debugLog('Cleaned up previous Firebase listener.');
       }
 
+      // Reset monotonic timestamp guard so initial room snapshot is accepted
+      localLastUpdated = 0;
+
       roomCode = code;
       currentRoomRef = firebaseDb.ref('rooms/' + roomCode);
       gameMode = 'ONLINE';
@@ -1043,27 +1046,62 @@
       if (isCreating) {
         localPlayerRole = 1;
         debugLog(`Assigned as HOST (Player 1) for room "${roomCode}"`);
-        resetGameLogic();
-        currentRoomRef.onDisconnect().remove();
       } else {
         localPlayerRole = 2;
         debugLog(`Assigned as GUEST (Player 2) for room "${roomCode}"`);
       }
 
-      // Attach Listener & Instantly Inspect Room State
+      // Attach Listener & Inspect Room State
       debugLog(`Attaching database listener on path: "rooms/${roomCode}"`);
+      let isInitialLoad = true;
+
       currentRoomRef.on('value', snapshot => {
         const data = snapshot.val();
 
+        if (isInitialLoad) {
+          isInitialLoad = false;
+
+          if (data && data.flatBoard) {
+            if (data.gamePhase === 'GAME_OVER') {
+              debugLog(`Room "${roomCode}" was in GAME_OVER state. Auto-resetting fresh game...`);
+              resetGameLogic();
+              syncStateToFirebase();
+              return;
+            } else {
+              debugLog(`Room "${roomCode}" game in progress found. Resuming existing game state...`);
+              localLastUpdated = data.lastUpdated || Date.now();
+              deserializeFlatBoard(data.flatBoard);
+              currentTurn = data.currentTurn;
+              gamePhase = data.gamePhase;
+              winner = data.winner || 0;
+              placementCount = data.placementCount || { 1: 0, 2: 0 };
+              selectedWorkerPos = (data.selectedWorkerPos && data.selectedWorkerPos.r !== -1) ? data.selectedWorkerPos : null;
+              gameMode = 'ONLINE';
+              onGameStateUpdated();
+              return;
+            }
+          } else {
+            // No room state exists yet in Firebase (brand new room code)
+            debugLog(`Room "${roomCode}" does not exist yet. Initializing fresh room state...`);
+            resetGameLogic();
+            syncStateToFirebase();
+            return;
+          }
+        }
+
+        // Subsequent remote updates
         if (data) {
-          // Robust timestamp-based echo guard: skip self-triggered local writes
-          if (data.lastUpdated && data.lastUpdated === lastLocalWriteTimestamp) {
+          // Monotonic Timestamp Guard: Reject stale or echo snapshots
+          if (data.lastUpdated && data.lastUpdated <= localLastUpdated) {
+            debugLog('Ignored stale or echo snapshot (lastUpdated <= localLastUpdated)');
             return;
           }
 
-          debugLog(`Remote state update received for room "${roomCode}".`);
+          debugLog(`Remote state update accepted for room "${roomCode}".`, data);
 
-          // Instantly sync room state and render!
+          localLastUpdated = data.lastUpdated || Date.now();
+
+          // Sync room state and render
           deserializeFlatBoard(data.flatBoard);
           currentTurn = data.currentTurn;
           gamePhase = data.gamePhase;
@@ -1073,8 +1111,6 @@
 
           gameMode = 'ONLINE';
           onGameStateUpdated();
-        } else if (!isCreating) {
-          document.getElementById('online-status').innerText = `Room "${roomCode}" does not exist yet!`;
         }
       }, err => {
         debugLog('Firebase READ Error:', err);
