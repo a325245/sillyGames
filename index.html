@@ -3,626 +3,762 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Santorini - 3D Strategy Game with Debugger</title>
+  <title>Santorini 3D - Classical Aegean Strategy</title>
+  
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Three.js & OrbitControls -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <!-- Firebase SDKs -->
+
+  <!-- Canvas Confetti Library -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <!-- Firebase JS SDK (Compat Mode for RTDB) -->
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+
   <style>
-    body { margin: 0; overflow: hidden; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
-    #canvas-container { width: 100vw; height: 100vh; display: block; }
-    .glass-panel { background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.15); }
-    .btn-action { transition: all 0.2s ease; }
-    .btn-action:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
-    .btn-action:active { transform: translateY(0); }
+    body {
+      font-family: 'Inter', sans-serif;
+      user-select: none;
+      background-color: #0b132b;
+      color: #f8fafc;
+      overflow: hidden;
+    }
+
+    .font-cinzel {
+      font-family: 'Cinzel', serif;
+    }
+
+    /* Glassmorphism Panel Styling */
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    }
+
+    .glass-button {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      transition: all 0.2s ease-in-out;
+    }
+
+    .glass-button:hover {
+      background: rgba(255, 255, 255, 0.22);
+      border-color: rgba(255, 255, 255, 0.4);
+      transform: translateY(-1px);
+    }
+
+    .glass-button:active {
+      transform: translateY(1px);
+    }
+
+    /* Pulsing Turn Badge */
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 12px rgba(56, 189, 248, 0.4); }
+      50% { box-shadow: 0 0 24px rgba(56, 189, 248, 0.8); }
+    }
+
+    .active-turn-pulse {
+      animation: pulseGlow 2s infinite ease-in-out;
+    }
+
+    /* Custom Scrollbar for Debug Log */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.4);
+    }
   </style>
 </head>
-<body class="bg-slate-900 text-white">
+<body class="w-screen h-screen relative flex flex-col justify-between overflow-hidden">
 
-  <div id="canvas-container"></div>
-
-  <!-- Top Navigation Bar -->
-  <div class="fixed top-4 left-4 right-4 flex justify-between items-center z-20 pointer-events-none">
-    <div class="flex items-center gap-3 pointer-events-auto">
-      <div class="glass-panel px-4 py-2 rounded-xl flex items-center gap-2">
-        <span class="text-2xl font-black text-amber-400 tracking-wider">SANTORINI</span>
-        <span id="badge-mode" class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full uppercase tracking-wider font-semibold">Local</span>
+  <!-- Top Navigation & Status Header -->
+  <header class="absolute top-0 left-0 right-0 z-20 p-4 pointer-events-none flex flex-wrap items-center justify-between gap-4">
+    <!-- Game Title & Room Status -->
+    <div class="pointer-events-auto flex items-center gap-3 glass-panel px-4 py-2.5 rounded-2xl">
+      <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-700 flex items-center justify-center text-white shadow-lg font-cinzel font-bold text-xl">
+        S
       </div>
-    </div>
-    
-    <div class="flex items-center gap-2 pointer-events-auto">
-      <button id="btn-restart" class="btn-action glass-panel hover:bg-slate-800 text-slate-200 px-3 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5">
-        🔄 <span>Restart</span>
-      </button>
-      <button id="btn-open-menu" class="btn-action glass-panel hover:bg-slate-800 text-slate-200 px-3 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5">
-        ⚙️ <span>Menu</span>
-      </button>
-      <button id="btn-open-rules" class="btn-action glass-panel hover:bg-slate-800 text-slate-200 px-3 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5">
-        ❓ <span>Rules</span>
-      </button>
-    </div>
-  </div>
-
-  <!-- Bottom Instruction / Status Banner -->
-  <div class="fixed bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-none w-full max-w-md px-4">
-    <div class="glass-panel p-4 rounded-2xl shadow-2xl pointer-events-auto border-t-2 border-amber-500/50 flex flex-col items-center gap-2 text-center">
-      <div class="flex items-center justify-between w-full border-b border-slate-700/50 pb-2">
-        <div class="flex items-center gap-2">
-          <div id="player-indicator-color" class="w-3.5 h-3.5 rounded-full bg-orange-500 ring-2 ring-white/50"></div>
-          <span id="player-indicator-text" class="font-bold text-sm tracking-wide uppercase">Player 1 Turn</span>
+      <div>
+        <h1 class="font-cinzel text-lg font-bold text-white tracking-wide leading-tight">SANTORINI <span class="text-xs text-blue-400 font-sans font-normal ml-1">3D</span></h1>
+        <div id="status-badge" class="flex items-center gap-2 text-xs font-medium text-slate-300">
+          <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="txt-game-mode">LOCAL SOLO</span>
         </div>
-        <span id="god-power-active" class="text-xs bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-medium hidden">Standard Rules</span>
       </div>
-      <p id="turn-instruction" class="text-sm text-slate-200 font-medium">Place your first worker on any empty tile.</p>
     </div>
-  </div>
 
-  <!-- START MENU MODAL -->
-  <div id="modal-start-menu" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-    <div class="glass-panel max-w-md w-full rounded-2xl p-6 shadow-2xl border border-slate-700/50 flex flex-col gap-6">
+    <!-- Active Turn & Instruction Banner -->
+    <div class="pointer-events-auto glass-panel px-6 py-2.5 rounded-2xl flex items-center gap-4 border-l-4 border-blue-500 active-turn-pulse">
       <div class="text-center">
-        <h1 class="text-4xl font-black text-amber-400 tracking-wider">SANTORINI</h1>
-        <p class="text-slate-400 text-sm mt-1">3D Tactical Building Strategy</p>
-      </div>
-
-      <div class="space-y-4">
-        <div>
-          <label class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-2">Select Game Mode</label>
-          <div class="grid grid-cols-3 gap-2">
-            <button id="opt-mode-local" class="btn-mode p-3 rounded-xl bg-amber-500 text-slate-950 font-bold text-sm flex flex-col items-center gap-1 border border-amber-400">
-              <span class="text-xl">👥</span>
-              <span>Pass & Play</span>
-            </button>
-            <button id="opt-mode-ai" class="btn-mode p-3 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-bold text-sm flex flex-col items-center gap-1 border border-slate-700">
-              <span class="text-xl">🤖</span>
-              <span>vs AI Bot</span>
-            </button>
-            <button id="opt-mode-online" class="btn-mode p-3 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 font-bold text-sm flex flex-col items-center gap-1 border border-slate-700">
-              <span class="text-xl">🌐</span>
-              <span>Online</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Online Settings Section -->
-        <div id="online-options-panel" class="hidden bg-slate-800/50 p-4 rounded-xl border border-slate-700 space-y-3">
-          <div class="text-xs font-bold text-slate-300 uppercase tracking-wider">Online Multiplayer (Firebase)</div>
-          <div>
-            <label class="text-xs text-slate-400 block mb-1">Room Code (4 Letters)</label>
-            <div class="flex gap-2">
-              <input type="text" id="input-room-code" placeholder="SANT" maxlength="6" class="uppercase tracking-widest text-center w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-sm font-mono font-bold focus:outline-none focus:border-amber-500">
-              <button id="btn-create-room" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs whitespace-nowrap">Create</button>
-              <button id="btn-join-room" class="bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs whitespace-nowrap">Join</button>
-            </div>
-          </div>
-          <p id="online-status" class="text-xs text-amber-400 font-medium"></p>
-        </div>
-      </div>
-
-      <div class="flex flex-col gap-2 pt-2 border-t border-slate-700/50">
-        <button id="btn-start-game" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-black py-3 rounded-xl text-base tracking-wide transition shadow-lg shadow-amber-500/20">
-          PLAY LOCAL GAME
-        </button>
-        <button id="btn-close-menu" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold py-2 rounded-xl text-sm transition hidden">
-          Return to Game
-        </button>
+        <div id="turn-indicator" class="text-xs font-semibold uppercase tracking-wider text-blue-400">PLAYER 1'S TURN</div>
+        <div id="phase-instruction" class="text-sm font-medium text-white">Place Worker 1</div>
       </div>
     </div>
-  </div>
 
-  <!-- RULES MODAL -->
-  <div id="modal-rules" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
-    <div class="glass-panel max-w-lg w-full rounded-2xl p-6 shadow-2xl border border-slate-700/50 flex flex-col gap-4 max-h-[85vh]">
-      <div class="flex justify-between items-center border-b border-slate-700 pb-3">
-        <h2 class="text-xl font-bold text-amber-400">How to Play Santorini</h2>
-        <button id="btn-close-rules" class="text-slate-400 hover:text-white text-lg font-bold">✕</button>
-      </div>
-      <div class="overflow-y-auto space-y-3 text-slate-300 text-sm pr-1">
-        <div>
-          <h3 class="font-bold text-white">Objective</h3>
-          <p>Be the first player to move one of your Workers up onto the <strong>3rd level</strong> of a building.</p>
-        </div>
-        <div>
-          <h3 class="font-bold text-white">Setup</h3>
-          <p>Players take turns placing two Workers each onto any empty space on the 5x5 board.</p>
-        </div>
-        <div>
-          <h3 class="font-bold text-white">Turn Structure</h3>
-          <p>On your turn, perform the following two steps in order:</p>
-          <ol class="list-decimal list-inside space-y-1 mt-1 text-slate-400">
-            <li><strong>Move:</strong> Move one of your Workers into an adjacent space (up 1 level max, or down any levels).</li>
-            <li><strong>Build:</strong> Build a block (Level 1, 2, 3, or Dome) adjacent to the moved Worker.</li>
-          </ol>
-        </div>
-        <div>
-          <h3 class="font-bold text-white">Domes</h3>
-          <p>When building on Level 3, a <strong>Dome</strong> is placed instead. Domes cap the building—no worker can move onto a dome.</p>
-        </div>
-      </div>
-      <button id="btn-understand-rules" class="w-full bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 rounded-xl text-sm border border-slate-600 mt-2">
-        Got It
+    <!-- Right Controls: Menu & Debug Toggle -->
+    <div class="pointer-events-auto flex items-center gap-2">
+      <button id="btn-copy-code" onclick="copyRoomCode()" class="hidden glass-button px-3.5 py-2.5 rounded-xl text-xs font-semibold text-white flex items-center gap-2">
+        <i class="fa-solid fa-copy text-blue-400"></i>
+        <span id="txt-room-code">ROOM: ----</span>
+      </button>
+
+      <button onclick="toggleDebugLog()" class="glass-button w-10 h-10 rounded-xl text-slate-300 hover:text-white flex items-center justify-center transition-all" title="Toggle Console Log">
+        <i class="fa-solid fa-terminal text-sm"></i>
+      </button>
+
+      <button onclick="openStartMenu()" class="glass-button px-4 py-2.5 rounded-xl text-xs font-semibold text-white flex items-center gap-2">
+        <i class="fa-solid fa-bars text-blue-400"></i>
+        <span>Lobby / Menu</span>
       </button>
     </div>
+  </header>
+
+  <!-- Main 3D Canvas Container -->
+  <main id="canvas-container" class="w-full h-full absolute inset-0 z-0 bg-slate-950">
+    <!-- Tile Pick Tooltip Overlay -->
+    <div id="tile-tooltip" class="absolute pointer-events-none opacity-0 transition-opacity duration-150 glass-panel px-3 py-1.5 rounded-lg text-xs font-medium text-white shadow-xl z-10 border border-white/20">
+      <span id="tooltip-text">Tile [0, 0]</span>
+    </div>
+  </main>
+
+  <!-- Lobby / Start Menu Modal -->
+  <div id="modal-start-menu" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+    <div class="glass-panel w-full max-w-md p-6 rounded-3xl border border-white/15 shadow-2xl relative text-slate-100">
+      <button id="btn-close-menu" onclick="closeStartMenu()" class="hidden absolute top-5 right-5 text-slate-400 hover:text-white transition-colors">
+        <i class="fa-solid fa-xmark text-xl"></i>
+      </button>
+
+      <div class="text-center mb-6">
+        <div class="w-16 h-16 mx-auto mb-3 rounded-2xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white text-3xl font-cinzel font-black shadow-lg">
+          🏛️
+        </div>
+        <h2 class="font-cinzel text-2xl font-bold tracking-wide text-white">SANTORINI 3D</h2>
+        <p class="text-xs text-slate-400 mt-1">Build, Climb, & Overcome in the Aegean</p>
+      </div>
+
+      <!-- Mode Selector Tabs -->
+      <div class="space-y-4">
+        <!-- Local Pass & Play -->
+        <button onclick="startLocalGame()" class="w-full p-4 rounded-2xl bg-slate-800/80 hover:bg-slate-700/80 border border-white/10 flex items-center gap-4 transition-all hover:scale-[1.02]">
+          <div class="w-11 h-11 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-xl">
+            <i class="fa-solid fa-users"></i>
+          </div>
+          <div class="text-left">
+            <div class="text-sm font-bold text-white">Local Pass & Play</div>
+            <div class="text-xs text-slate-400">Play with two players on the same screen</div>
+          </div>
+        </button>
+
+        <!-- Divider -->
+        <div class="relative my-4 flex items-center justify-center">
+          <div class="border-t border-white/10 w-full"></div>
+          <span class="absolute bg-slate-900 px-3 text-[10px] font-bold tracking-widest text-slate-400 uppercase">ONLINE MULTIPLAYER</span>
+        </div>
+
+        <!-- Online Room Code Options -->
+        <div class="space-y-3">
+          <div class="flex gap-2">
+            <input id="input-room-code" type="text" placeholder="ROOM CODE (e.g. OPOP)" uppercase maxlength="6"
+              class="w-full px-4 py-3 rounded-xl bg-slate-900/90 border border-white/20 text-white placeholder-slate-500 font-mono text-center tracking-widest uppercase focus:outline-none focus:border-blue-400 text-sm">
+            <button onclick="setupOnlineRoom(false)" class="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 font-bold text-xs uppercase tracking-wider text-white transition-all shadow-lg hover:shadow-emerald-500/20 whitespace-nowrap">
+              Join
+            </button>
+          </div>
+
+          <button onclick="setupOnlineRoom(true)" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 font-bold text-xs uppercase tracking-wider text-white transition-all shadow-lg hover:shadow-blue-500/20 flex items-center justify-center gap-2">
+            <i class="fa-solid fa-plus text-xs"></i>
+            Create New Online Room
+          </button>
+        </div>
+      </div>
+
+      <!-- Footer Info -->
+      <div id="online-status" class="mt-5 text-center text-xs font-medium text-slate-400">
+        Ready to play. Select mode above.
+      </div>
+    </div>
   </div>
 
-  <!-- DEBUGGER OVERLAY -->
-  <button id="debugToggleBtn" style="position: fixed; bottom: 20px; right: 20px; z-index: 9999; padding: 10px 15px; background: #ef4444; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-    🐛 Bug Reporter
-  </button>
+  <!-- Victory Celebration Modal -->
+  <div id="modal-victory" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+    <div class="glass-panel w-full max-w-sm p-8 rounded-3xl border border-yellow-500/30 text-center shadow-2xl relative overflow-hidden">
+      <!-- Glow effect -->
+      <div class="absolute -top-12 left-1/2 -translate-x-1/2 w-40 h-40 bg-yellow-500/20 rounded-full blur-3xl pointer-events-none"></div>
 
-  <div id="debugPanel" style="display: none; position: fixed; bottom: 70px; right: 20px; width: 480px; height: 420px; background: rgba(15, 23, 42, 0.95); color: #22c55e; z-index: 9999; padding: 15px; border-radius: 12px; font-family: monospace; font-size: 11px; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.5); flex-direction: column;">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #334155; pb-2;">
-      <strong style="color: white; font-size: 13px;">Verbose Firebase & Game Debugger</strong>
-      <button id="copyDebugBtn" style="background: #3b82f6; color: white; border: none; padding: 4px 10px; cursor: pointer; border-radius: 6px; font-weight: bold;">Copy Logs</button>
+      <div class="text-5xl mb-3 animate-bounce">🏆</div>
+      <h3 id="victory-title" class="font-cinzel text-2xl font-black text-yellow-400 tracking-wide">PLAYER 1 VICTORY!</h3>
+      <p id="victory-subtitle" class="text-xs text-slate-300 mt-2">Worker ascended onto Level 3 structure!</p>
+
+      <div class="mt-6 space-y-3">
+        <button onclick="restartCurrentGame()" class="w-full py-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-600 hover:from-yellow-400 hover:to-amber-500 text-slate-950 font-bold text-xs uppercase tracking-wider transition-all shadow-lg shadow-yellow-500/20">
+          Play Again
+        </button>
+        <button onclick="openStartMenu()" class="w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs transition-colors">
+          Return to Lobby
+        </button>
+      </div>
     </div>
-    <pre id="debugOutput" style="flex-grow: 1; overflow-y: auto; white-space: pre-wrap; word-wrap: break-word; margin: 0; padding-right: 5px; color: #a7f3d0;"></pre>
+  </div>
+
+  <!-- Real-time Debug Log Drawer -->
+  <div id="debug-drawer" class="hidden fixed bottom-4 right-4 z-40 w-96 max-w-[calc(100vw-2rem)] glass-panel rounded-2xl border border-white/20 p-4 shadow-2xl text-xs font-mono">
+    <div class="flex items-center justify-between pb-2 mb-2 border-b border-white/10">
+      <div class="flex items-center gap-2 text-slate-300 font-bold">
+        <i class="fa-solid fa-terminal text-blue-400"></i>
+        <span>Debug Log</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="clearDebugLog()" class="text-slate-400 hover:text-white text-[10px] uppercase tracking-wider">Clear</button>
+        <button onclick="toggleDebugLog()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+    <div id="debug-log-content" class="h-48 overflow-y-auto space-y-1 text-slate-300 text-[11px] leading-relaxed">
+      <div class="text-slate-500">[System] Debug logger initialized.</div>
+    </div>
   </div>
 
   <script>
-    // --- DEBUGGER SETUP ---
-    const debugPanel = document.getElementById('debugPanel');
-    const debugOutput = document.getElementById('debugOutput');
-    const debugToggleBtn = document.getElementById('debugToggleBtn');
-    const copyDebugBtn = document.getElementById('copyDebugBtn');
+    /* =========================================================================
+       GLOBAL GAME STATE & CONSTANTS
+       ========================================================================= */
+    const BOARD_SIZE = 5;
+    const TILE_SIZE = 2.0;
+    const TILE_GAP = 0.25;
+    const STEP_SIZE = TILE_SIZE + TILE_GAP; // 2.25 spacing
 
-    debugToggleBtn.addEventListener('click', () => {
-      debugPanel.style.display = debugPanel.style.display === 'none' ? 'flex' : 'none';
-    });
+    // Game logic variables
+    let boardState = []; // 5x5 grid: { level: 0..3, dome: boolean, worker: 0|1|2 }
+    let currentTurn = 1; // Player 1 or Player 2
+    let gamePhase = 'PLACEMENT'; // 'PLACEMENT', 'MOVE', 'BUILD', 'GAME_OVER'
+    let winner = 0;
+    let placementCount = { 1: 0, 2: 0 }; // Track placed workers per player (2 each)
+    let selectedWorkerPos = null; // { r, c }
+    let gameMode = 'LOCAL'; // 'LOCAL' or 'ONLINE'
+    let localPlayerRole = 0; // 0 = control both, 1 = Player 1, 2 = Player 2
+    let roomCode = '';
 
-    copyDebugBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(debugOutput.textContent).then(() => {
-        const originalText = copyDebugBtn.innerText;
-        copyDebugBtn.innerText = "Copied!";
-        setTimeout(() => copyDebugBtn.innerText = originalText, 2000);
-      });
-    });
-
-    window.debugLog = function(action, data = null) {
-      const time = new Date().toLocaleTimeString() + '.' + String(new Date().getMilliseconds()).padStart(3, '0');
-      let logString = `[${time}] ${action}\n`;
-      
-      if (data !== null) {
-        try {
-          if (data instanceof Error) {
-            logString += `Error Details: ${JSON.stringify(data, Object.getOwnPropertyNames(data), 2)}\n`;
-          } else {
-            logString += `Data: ${JSON.stringify(data, null, 2)}\n`;
-          }
-        } catch (e) {
-          logString += `Data: [Object non-stringifiable]\n`;
-        }
-      }
-      logString += `----------------------------------------\n`;
-      
-      debugOutput.textContent = logString + debugOutput.textContent;
-      console.log(`[DEBUG] ${action}`, data);
-    };
-
-    // --- GAME & FIREBASE CONFIG ---
-    const DEFAULT_FIREBASE_CONFIG = {
-      apiKey: "AIzaSyC7i1HKFKY3_CrTp4UymiOpQOufAA0pkrA",
-      authDomain: "santorino-1a999.firebaseapp.com",
-      databaseURL: "https://santorino-1a999-default-rtdb.firebaseio.com",
-      projectId: "santorino-1a999",
-      storageBucket: "santorino-1a999.firebasestorage.app",
-      messagingSenderId: "258831152434",
-      appId: "1:258831152434:web:3f28ab1bcc1c23439bd32b"
-    };
-
-    let firebaseApp = null;
+    // Firebase synchronization
     let firebaseDb = null;
     let currentRoomRef = null;
-    let localPlayerRole = 1;
-    let isHost = false;
+    let lastSyncedTimestamp = 0;
     let ignoreNextRemoteSync = false;
+    let hasCelebratedWin = false;
 
-    const BOARD_SIZE = 5;
-    let boardState = createEmptyBoard();
-    let currentTurn = 1;
-    let gamePhase = 'PLACEMENT'; 
-    let gameMode = 'LOCAL'; 
-
-    let placementCount = { 1: 0, 2: 0 };
-    let selectedWorkerPos = null;
-
+    // Three.js scene references
     let scene, camera, renderer, controls;
-    let gridPlanes = [];
-    let highlightDiscs = Array(5).fill(null).map(() => Array(5).fill(null));
-    let cell3DObjects = Array(5).fill(null).map(() => Array(5).fill(null).map(() => []));
-    let worker3DObjects = { 1: [], 2: [] };
+    let boardGroup, highlightGroup, workerGroup;
+    let raycaster, mouse;
+    let hoverTileMesh = null;
+    let hoveredCell = null;
 
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    const COLORS = {
-      P1: 0xf97316,
-      P2: 0x06b6d4,
-      BOARD_GRASS: 0x10b981,
-      BOARD_BORDER: 0x1e293b,
-      STONE_L1: 0xe2e8f0,
-      STONE_L2: 0xcbd5e1,
-      STONE_L3: 0x94a3b8,
-      DOME: 0x2563eb,
-      HIGHLIGHT_MOVE: 0x22c55e,
-      HIGHLIGHT_BUILD: 0x3b82f6
+    // Default Firebase Config (Santorini RTDB)
+    const firebaseConfig = {
+      databaseURL: "https://santorino-1a999-default-rtdb.firebaseio.com"
     };
 
-    function createEmptyBoard() {
-      const grid = [];
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        const row = [];
-        for (let c = 0; c < BOARD_SIZE; c++) {
-          row.push({ level: 0, dome: false, worker: 0 });
-        }
-        grid.push(row);
+    /* =========================================================================
+       DEBUG LOGGER & UTILITY FUNCTIONS
+       ========================================================================= */
+    function debugLog(msg, obj = null) {
+      const time = new Date().toLocaleTimeString();
+      console.log(`[${time}] ${msg}`, obj ? obj : '');
+      
+      const logContent = document.getElementById('debug-log-content');
+      if (logContent) {
+        const item = document.createElement('div');
+        item.className = 'border-b border-white/5 pb-1';
+        let detailText = obj ? `<pre class="text-[9px] text-slate-400 overflow-x-auto">${JSON.stringify(obj, null, 2)}</pre>` : '';
+        item.innerHTML = `<span class="text-slate-500">[${time}]</span> <span class="text-blue-300">${msg}</span> ${detailText}`;
+        logContent.appendChild(item);
+        logContent.scrollTop = logContent.scrollHeight;
       }
-      return grid;
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
-      debugLog('App Initializing...');
-      initThreeJS();
-      initUI();
-      initFirebase();
-      resetGameLogic();
-      animate();
-    });
+    function clearDebugLog() {
+      const logContent = document.getElementById('debug-log-content');
+      if (logContent) logContent.innerHTML = '';
+    }
 
+    function toggleDebugLog() {
+      const drawer = document.getElementById('debug-drawer');
+      drawer.classList.toggle('hidden');
+    }
+
+    function copyRoomCode() {
+      if (!roomCode) return;
+      navigator.clipboard.writeText(roomCode);
+      const btnText = document.getElementById('txt-room-code');
+      const originalText = btnText.innerText;
+      btnText.innerText = 'COPIED!';
+      setTimeout(() => { btnText.innerText = originalText; }, 2000);
+    }
+
+    /* =========================================================================
+       FIREBASE REALTIME DATABASE INITIALIZATION
+       ========================================================================= */
     function initFirebase() {
       try {
-        debugLog('Initializing Firebase SDK', { databaseURL: DEFAULT_FIREBASE_CONFIG.databaseURL });
+        debugLog('Initializing Firebase SDK');
         if (!firebase.apps.length) {
-          firebaseApp = firebase.initializeApp(DEFAULT_FIREBASE_CONFIG);
-        } else {
-          firebaseApp = firebase.app();
+          firebase.initializeApp(firebaseConfig);
         }
         firebaseDb = firebase.database();
         debugLog('Firebase initialized successfully.');
-
-        // Monitor actual socket connection status
-        const connectedRef = firebaseDb.ref('.info/connected');
-        connectedRef.on('value', (snap) => {
-          if (snap.val() === true) {
-            debugLog('Firebase Realtime DB Socket CONNECTED.');
-          } else {
-            debugLog('Firebase Realtime DB Socket DISCONNECTED.');
-          }
-        });
-
       } catch (err) {
-        debugLog('Firebase Initialization ERROR', err);
+        debugLog('ERROR initializing Firebase:', err);
       }
     }
 
-    function initThreeJS() {
+    /* =========================================================================
+       THREE.JS 3D SCENE SETUP & LIGHTING
+       ========================================================================= */
+    function init3DScene() {
+      debugLog('Setting up 3D Scene...');
       const container = document.getElementById('canvas-container');
-      
+
+      // Scene
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x0f172a);
+      scene.background = new THREE.Color(0x0b132b);
+      scene.fog = new THREE.FogExp2(0x0b132b, 0.025);
 
+      // Camera
       camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-      camera.position.set(0, 18, 18);
+      camera.position.set(0, 14, 16);
 
+      // Renderer
       renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight);
       renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       container.appendChild(renderer.domElement);
 
+      // Orbit Controls
       controls = new THREE.OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
-      controls.maxPolarAngle = Math.PI / 2 - 0.05;
+      controls.maxPolarAngle = Math.PI / 2 - 0.05; // Prevent camera going below island
       controls.minDistance = 8;
-      controls.maxDistance = 35;
+      controls.maxDistance = 28;
+      controls.target.set(0, 1, 0);
 
-      const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+      // Lighting
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
       scene.add(ambientLight);
 
-      const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-      dirLight.position.set(12, 20, 10);
-      dirLight.castShadow = true;
-      scene.add(dirLight);
+      const sunLight = new THREE.DirectionalLight(0xfffaed, 0.9);
+      sunLight.position.set(12, 20, 10);
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.width = 2048;
+      sunLight.shadow.mapSize.height = 2048;
+      sunLight.shadow.camera.near = 0.5;
+      sunLight.shadow.camera.far = 50;
+      const d = 10;
+      sunLight.shadow.camera.left = -d;
+      sunLight.shadow.camera.right = d;
+      sunLight.shadow.camera.top = d;
+      sunLight.shadow.camera.bottom = -d;
+      scene.add(sunLight);
 
-      buildBoardBase();
-      buildGridTargetPlanes();
+      const fillLight = new THREE.DirectionalLight(0x38bdf8, 0.3);
+      fillLight.position.set(-10, 10, -10);
+      scene.add(fillLight);
 
+      // Groups
+      boardGroup = new THREE.Group();
+      highlightGroup = new THREE.Group();
+      workerGroup = new THREE.Group();
+      scene.add(boardGroup);
+      scene.add(highlightGroup);
+      scene.add(workerGroup);
+
+      // Raycaster & Mouse
+      raycaster = new THREE.Raycaster();
+      mouse = new THREE.Vector2();
+
+      // Build Coastal Island Base
+      buildIslandEnvironment();
+
+      // Event Listeners
       window.addEventListener('resize', onWindowResize);
+      renderer.domElement.addEventListener('pointermove', onPointerMove);
       renderer.domElement.addEventListener('pointerdown', onPointerDown);
+
+      // Animation Loop
+      animate();
     }
 
-    function buildBoardBase() {
-      const islandGeo = new THREE.BoxGeometry(11, 1.5, 11);
-      const islandMat = new THREE.MeshStandardMaterial({ color: COLORS.BOARD_BORDER, roughness: 0.8 });
+    function buildIslandEnvironment() {
+      // Aegean Sea Plane
+      const seaGeo = new THREE.PlaneGeometry(200, 200);
+      const seaMat = new THREE.MeshStandardMaterial({
+        color: 0x005582,
+        roughness: 0.1,
+        metalness: 0.2
+      });
+      const sea = new THREE.Mesh(seaGeo, seaMat);
+      sea.rotation.x = -Math.PI / 2;
+      sea.position.y = -2.2;
+      scene.add(sea);
+
+      // Cliff Base Platform
+      const islandGeo = new THREE.CylinderGeometry(7.5, 8.5, 2, 8);
+      const islandMat = new THREE.MeshStandardMaterial({
+        color: 0x3d312a,
+        roughness: 0.9,
+      });
       const island = new THREE.Mesh(islandGeo, islandMat);
-      island.position.y = -0.75;
+      island.position.y = -1;
+      island.receiveShadow = true;
       scene.add(island);
 
-      const grassGeo = new THREE.BoxGeometry(10.2, 0.2, 10.2);
-      const grassMat = new THREE.MeshStandardMaterial({ color: COLORS.BOARD_GRASS, roughness: 0.6 });
-      const grass = new THREE.Mesh(grassGeo, grassMat);
-      grass.position.y = 0.01;
-      scene.add(grass);
-
-      const gridHelper = new THREE.GridHelper(10, 5, 0x047857, 0x047857);
-      gridHelper.position.y = 0.12;
-      scene.add(gridHelper);
-    }
-
-    function buildGridTargetPlanes() {
-      const planeGeo = new THREE.PlaneGeometry(1.9, 1.9);
-      planeGeo.rotateX(-Math.PI / 2);
-
-      const discGeo = new THREE.RingGeometry(0.2, 0.7, 32);
-      discGeo.rotateX(-Math.PI / 2);
-
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-          const x = (c - 2) * 2;
-          const z = (r - 2) * 2;
-
-          const planeMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0 });
-          const plane = new THREE.Mesh(planeGeo, planeMat);
-          plane.position.set(x, 0.15, z);
-          plane.userData = { r, c };
-          scene.add(plane);
-          gridPlanes.push(plane);
-
-          const discMat = new THREE.MeshBasicMaterial({ color: COLORS.HIGHLIGHT_MOVE, transparent: true, opacity: 0, side: THREE.DoubleSide });
-          const disc = new THREE.Mesh(discGeo, discMat);
-          disc.position.set(x, 0.16, z);
-          disc.visible = false;
-          scene.add(disc);
-          highlightDiscs[r][c] = disc;
-        }
-      }
-    }
-
-    function clearBoard3DObjects() {
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-          cell3DObjects[r][c].forEach(obj => scene.remove(obj));
-          cell3DObjects[r][c] = [];
-        }
-      }
-      [1, 2].forEach(p => {
-        worker3DObjects[p].forEach(w => scene.remove(w));
-        worker3DObjects[p] = [];
+      // Lawn Top Platform
+      const lawnGeo = new THREE.BoxGeometry(11.8, 0.4, 11.8);
+      const lawnMat = new THREE.MeshStandardMaterial({
+        color: 0x2e7d32,
+        roughness: 0.6
       });
+      const lawn = new THREE.Mesh(lawnGeo, lawnMat);
+      lawn.position.y = -0.2;
+      lawn.receiveShadow = true;
+      scene.add(lawn);
     }
 
+    /* =========================================================================
+       3D BUILDING & ARCHITECTURAL FLOURISH MESH CREATORS
+       ========================================================================= */
+    // Material Palette
+    const plasterMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
+    const woodDoorMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.8 });
+    const blueDomeMat = new THREE.MeshStandardMaterial({ color: 0x0288d1, roughness: 0.2, metalness: 0.1 });
+    const goldCapMat = new THREE.MeshStandardMaterial({ color: 0xfcb316, roughness: 0.3, metalness: 0.7 });
+    const columnMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.2 });
+
+    function createLevel1Mesh() {
+      const group = new THREE.Group();
+      // Main plaster storey
+      const body = new THREE.Mesh(new THREE.BoxGeometry(TILE_SIZE, 0.9, TILE_SIZE), plasterMat);
+      body.position.y = 0.45;
+      body.castShadow = true;
+      body.receiveShadow = true;
+      group.add(body);
+
+      // Recessed door flourish on side
+      const door = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.05), woodDoorMat);
+      door.position.set(0, 0.3, TILE_SIZE / 2 + 0.001);
+      group.add(door);
+
+      return group;
+    }
+
+    function createLevel2Mesh() {
+      const group = new THREE.Group();
+      
+      // Central Storey Block
+      const core = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.9, 1.6), plasterMat);
+      core.position.y = 0.45;
+      core.castShadow = true;
+      core.receiveShadow = true;
+      group.add(core);
+
+      // ARCHITECTURAL FLOURISH: 4 Cylindrical Corner Columns with Caps & Bases
+      const colRadius = 0.1;
+      const colHeight = 0.8;
+      const colGeo = new THREE.CylinderGeometry(colRadius, colRadius, colHeight, 16);
+      const capGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.06, 16);
+
+      const offset = 0.82;
+      const corners = [
+        [-offset, -offset],
+        [ offset, -offset],
+        [-offset,  offset],
+        [ offset,  offset]
+      ];
+
+      corners.forEach(([cx, cz]) => {
+        // Base Cap
+        const baseCap = new THREE.Mesh(capGeo, columnMat);
+        baseCap.position.set(cx, 0.03, cz);
+        group.add(baseCap);
+
+        // Cylinder Column Shaft
+        const col = new THREE.Mesh(colGeo, columnMat);
+        col.position.set(cx, 0.43, cz);
+        col.castShadow = true;
+        group.add(col);
+
+        // Top Capital
+        const topCap = new THREE.Mesh(capGeo, columnMat);
+        topCap.position.set(cx, 0.83, cz);
+        group.add(topCap);
+      });
+
+      // Top Cornice / Entablature Molding
+      const cornice = new THREE.Mesh(new THREE.BoxGeometry(TILE_SIZE + 0.1, 0.12, TILE_SIZE + 0.1), plasterMat);
+      cornice.position.y = 0.9,
+      cornice.castShadow = true;
+      group.add(cornice);
+
+      return group;
+    }
+
+    function createLevel3Mesh() {
+      const group = new THREE.Group();
+
+      // Arched Pavilion Core
+      const core = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.8, 1.4), plasterMat);
+      core.position.y = 0.4;
+      core.castShadow = true;
+      core.receiveShadow = true;
+      group.add(core);
+
+      // Balcony Rim Ledge
+      const balcony = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 1.8), plasterMat);
+      balcony.position.y = 0.85;
+      group.add(balcony);
+
+      return group;
+    }
+
+    function createDomeMesh() {
+      const group = new THREE.Group();
+
+      // Smooth Blue Hemisphere Dome
+      const domeGeo = new THREE.SphereGeometry(0.9, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+      const dome = new THREE.Mesh(domeGeo, blueDomeMat);
+      dome.position.y = 0;
+      dome.castShadow = true;
+      group.add(dome);
+
+      // Gold Top Finial Sphere
+      const finial = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), goldCapMat);
+      finial.position.y = 0.92;
+      group.add(finial);
+
+      return group;
+    }
+
+    function createWorkerMesh(player) {
+      const group = new THREE.Group();
+
+      const mainColor = player === 1 ? 0x1d4ed8 : 0xd97706; // Blue (P1) vs Amber/Gold (P2)
+      const accentColor = player === 1 ? 0x93c5fd : 0xfef08a;
+
+      const bodyMat = new THREE.MeshStandardMaterial({ color: mainColor, roughness: 0.3, metalness: 0.2 });
+      const accentMat = new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.2 });
+
+      // Pedestal Base
+      const base = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.45, 0.15, 16), accentMat);
+      base.position.y = 0.075;
+      base.castShadow = true;
+      group.add(base);
+
+      // Body Torso
+      const body = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.7, 16), bodyMat);
+      body.position.y = 0.5;
+      body.castShadow = true;
+      group.add(body);
+
+      // Head
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), accentMat);
+      head.position.y = 0.95;
+      head.castShadow = true;
+      group.add(head);
+
+      // Helmet Cap
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.05, 0.12, 16), bodyMat);
+      cap.position.y = 1.15;
+      group.add(cap);
+
+      return group;
+    }
+
+    /* =========================================================================
+       BOARD RENDERING & STATE SYNC TO 3D
+       ========================================================================= */
     function render3DBoardFromState() {
-      clearBoard3DObjects();
+      // Clear existing 3D board objects
+      while (boardGroup.children.length > 0) boardGroup.remove(boardGroup.children[0]);
+      while (workerGroup.children.length > 0) workerGroup.remove(workerGroup.children[0]);
 
       for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
           const cell = boardState[r][c];
-          const x = (c - 2) * 2;
-          const z = (r - 2) * 2;
+          const x = (c - 2) * STEP_SIZE;
+          const z = (r - 2) * STEP_SIZE;
 
-          for (let lvl = 1; lvl <= cell.level; lvl++) {
-            let mesh;
-            if (lvl === 1) {
-              const geo = new THREE.BoxGeometry(1.8, 0.8, 1.8);
-              const mat = new THREE.MeshStandardMaterial({ color: COLORS.STONE_L1 });
-              mesh = new THREE.Mesh(geo, mat);
-              mesh.position.set(x, 0.4, z);
-            } else if (lvl === 2) {
-              const geo = new THREE.BoxGeometry(1.5, 0.8, 1.5);
-              const mat = new THREE.MeshStandardMaterial({ color: COLORS.STONE_L2 });
-              mesh = new THREE.Mesh(geo, mat);
-              mesh.position.set(x, 1.2, z);
-            } else if (lvl === 3) {
-              const geo = new THREE.BoxGeometry(1.2, 0.8, 1.2);
-              const mat = new THREE.MeshStandardMaterial({ color: COLORS.STONE_L3 });
-              mesh = new THREE.Mesh(geo, mat);
-              mesh.position.set(x, 2.0, z);
-            }
-            mesh.castShadow = true;
-            scene.add(mesh);
-            cell3DObjects[r][c].push(mesh);
+          // Level 0 Tile Surface
+          const tileGeo = new THREE.BoxGeometry(TILE_SIZE, 0.2, TILE_SIZE);
+          const tileMat = new THREE.MeshStandardMaterial({
+            color: 0x81c784, // Lawn green tile top
+            roughness: 0.5
+          });
+          const tile = new THREE.Mesh(tileGeo, tileMat);
+          tile.position.set(x, 0.1, z);
+          tile.receiveShadow = true;
+          tile.userData = { r, c };
+          boardGroup.add(tile);
+
+          let currentY = 0.2;
+
+          // Level 1 Building
+          if (cell.level >= 1) {
+            const l1 = createLevel1Mesh();
+            l1.position.set(x, currentY, z);
+            boardGroup.add(l1);
+            currentY += 0.9;
           }
 
+          // Level 2 Building (With Columns)
+          if (cell.level >= 2) {
+            const l2 = createLevel2Mesh();
+            l2.position.set(x, currentY, z);
+            boardGroup.add(l2);
+            currentY += 0.9;
+          }
+
+          // Level 3 Building
+          if (cell.level >= 3) {
+            const l3 = createLevel3Mesh();
+            l3.position.set(x, currentY, z);
+            boardGroup.add(l3);
+            currentY += 0.85;
+          }
+
+          // Dome
           if (cell.dome) {
-            const domeHeight = cell.level * 0.8;
-            const geo = new THREE.SphereGeometry(0.65, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
-            const mat = new THREE.MeshStandardMaterial({ color: COLORS.DOME });
-            const dome = new THREE.Mesh(geo, mat);
-            dome.position.set(x, domeHeight + 0.05, z);
-            scene.add(dome);
-            cell3DObjects[r][c].push(dome);
+            const dome = createDomeMesh();
+            dome.position.set(x, currentY, z);
+            boardGroup.add(dome);
           }
 
-          if (cell.worker && cell.worker > 0) {
-            const heightY = cell.level * 0.8;
-            const workerGroup = new THREE.Group();
-
-            const bodyGeo = new THREE.CylinderGeometry(0.35, 0.45, 0.9, 12);
-            const bodyMat = new THREE.MeshStandardMaterial({
-              color: cell.worker === 1 ? COLORS.P1 : COLORS.P2,
-              roughness: 0.3
-            });
-            const body = new THREE.Mesh(bodyGeo, bodyMat);
-            body.position.y = 0.45;
-            workerGroup.add(body);
-
-            const headGeo = new THREE.SphereGeometry(0.3, 12, 10);
-            const headMat = new THREE.MeshStandardMaterial({ color: 0xffffff });
-            const head = new THREE.Mesh(headGeo, headMat);
-            head.position.y = 1.0;
-            workerGroup.add(head);
-
-            workerGroup.position.set(x, heightY + 0.05, z);
-
-            if (selectedWorkerPos && selectedWorkerPos.r === r && selectedWorkerPos.c === c) {
-              workerGroup.position.y += 0.25;
-            }
-
-            scene.add(workerGroup);
-            worker3DObjects[cell.worker].push(workerGroup);
+          // Worker Piece Placement
+          if (cell.worker > 0) {
+            const worker = createWorkerMesh(cell.worker);
+            worker.position.set(x, currentY, z);
+            worker.userData = { r, c, player: cell.worker };
+            workerGroup.add(worker);
           }
         }
       }
-      updateHighlightOverlays();
+
+      // Re-render Turn & Move Highlights
+      renderHighlights();
     }
 
-    function updateHighlightOverlays() {
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-          highlightDiscs[r][c].visible = false;
-        }
-      }
+    /* =========================================================================
+       DYNAMIC TURN HIGHLIGHTS & VALID MOVE OVERLAYS
+       ========================================================================= */
+    function renderHighlights() {
+      while (highlightGroup.children.length > 0) highlightGroup.remove(highlightGroup.children[0]);
 
       if (gamePhase === 'GAME_OVER') return;
-      if (gameMode === 'ONLINE' && currentTurn !== localPlayerRole) return;
 
-      if (gamePhase === 'PLACEMENT') {
+      const isMyTurn = (gameMode === 'LOCAL') || (localPlayerRole === currentTurn);
+
+      // 1. Highlight Selectable Workers on Active Player's Turn
+      if (isMyTurn) {
         for (let r = 0; r < BOARD_SIZE; r++) {
           for (let c = 0; c < BOARD_SIZE; c++) {
-            if (!boardState[r][c].worker) {
-              showDisc(r, c, COLORS.HIGHLIGHT_MOVE, 0.4);
+            const cell = boardState[r][c];
+            if (cell.worker === currentTurn) {
+              const isSelected = selectedWorkerPos && selectedWorkerPos.r === r && selectedWorkerPos.c === c;
+              
+              // Worker Halo Ring Mesh
+              const yHeight = getCellSurfaceHeight(r, c);
+              const x = (c - 2) * STEP_SIZE;
+              const z = (r - 2) * STEP_SIZE;
+
+              const ringGeo = new THREE.RingGeometry(0.55, 0.75, 32);
+              const ringMat = new THREE.MeshBasicMaterial({
+                color: isSelected ? 0x38bdf8 : 0xfacc15,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: isSelected ? 0.95 : 0.65
+              });
+              const ring = new THREE.Mesh(ringGeo, ringMat);
+              ring.rotation.x = -Math.PI / 2;
+              ring.position.set(x, yHeight + 0.02, z);
+              ring.name = "turnHalo";
+              highlightGroup.add(ring);
             }
           }
         }
-      } else if (gamePhase === 'SELECT_WORKER') {
-        for (let r = 0; r < BOARD_SIZE; r++) {
-          for (let c = 0; c < BOARD_SIZE; c++) {
-            if (boardState[r][c].worker === currentTurn) {
-              showDisc(r, c, COLORS.HIGHLIGHT_MOVE, 0.7);
-            }
-          }
-        }
-      } else if (gamePhase === 'MOVE' && selectedWorkerPos) {
-        const moves = getValidMoves(selectedWorkerPos.r, selectedWorkerPos.c);
-        moves.forEach(({ r, c }) => showDisc(r, c, COLORS.HIGHLIGHT_MOVE, 0.8));
-      } else if (gamePhase === 'BUILD' && selectedWorkerPos) {
-        const builds = getValidBuilds(selectedWorkerPos.r, selectedWorkerPos.c);
-        builds.forEach(({ r, c }) => showDisc(r, c, COLORS.HIGHLIGHT_BUILD, 0.8));
+      }
+
+      // 2. Highlight Valid Movement Destination Tiles
+      if (gamePhase === 'MOVE' && selectedWorkerPos && isMyTurn) {
+        const moves = getValidMoveTiles(selectedWorkerPos.r, selectedWorkerPos.c);
+        moves.forEach(({ r, c }) => {
+          createTileHighlightMesh(r, c, 0x22c55e, 0.65); // Green for Move
+        });
+      }
+
+      // 3. Highlight Valid Build Destination Tiles
+      if (gamePhase === 'BUILD' && selectedWorkerPos && isMyTurn) {
+        const builds = getValidBuildTiles(selectedWorkerPos.r, selectedWorkerPos.c);
+        builds.forEach(({ r, c }) => {
+          createTileHighlightMesh(r, c, 0x06b6d4, 0.65); // Cyan/Gold for Build
+        });
       }
     }
 
-    function showDisc(r, c, color, opacity) {
-      const disc = highlightDiscs[r][c];
-      const yHeight = boardState[r][c].level * 0.8 + (boardState[r][c].dome ? 0.8 : 0.05);
-      disc.position.y = yHeight + 0.12;
-      disc.material.color.setHex(color);
-      disc.material.opacity = opacity;
-      disc.visible = true;
+    function createTileHighlightMesh(r, c, colorHex, opacityVal) {
+      const x = (c - 2) * STEP_SIZE;
+      const z = (r - 2) * STEP_SIZE;
+      const yHeight = getCellSurfaceHeight(r, c);
+
+      const geo = new THREE.PlaneGeometry(TILE_SIZE * 0.92, TILE_SIZE * 0.92);
+      const mat = new THREE.MeshBasicMaterial({
+        color: colorHex,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: opacityVal
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.position.set(x, yHeight + 0.02, z);
+      highlightGroup.add(mesh);
     }
 
-    function onPointerDown(e) {
-      if (e.target.tagName !== 'CANVAS') return;
-
-      mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-      mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(gridPlanes);
-
-      if (intersects.length > 0) {
-        const { r, c } = intersects[0].object.userData;
-        debugLog(`Tile Clicked: [${r}, ${c}]`, { currentTurn, gamePhase, localPlayerRole, gameMode });
-        handleTileClick(r, c);
-      }
+    function getCellSurfaceHeight(r, c) {
+      const cell = boardState[r][c];
+      let y = 0.2;
+      if (cell.level >= 1) y += 0.9;
+      if (cell.level >= 2) y += 0.9;
+      if (cell.level >= 3) y += 0.85;
+      return y;
     }
 
-    function handleTileClick(r, c) {
-      if (gamePhase === 'GAME_OVER') return;
-      if (gameMode === 'ONLINE' && currentTurn !== localPlayerRole) {
-        debugLog('Click ignored: Not your turn in online mode.');
-        return;
-      }
-
-      if (gamePhase === 'PLACEMENT') {
-        if (!boardState[r][c].worker) {
-          boardState[r][c].worker = currentTurn;
-          placementCount[currentTurn]++;
-
-          if (placementCount[1] === 2 && placementCount[2] === 2) {
-            gamePhase = 'SELECT_WORKER';
-            currentTurn = 1;
-            debugLog('Placement phase complete! Transitioning to SELECT_WORKER.');
-          } else {
-            currentTurn = currentTurn === 1 ? 2 : 1;
-          }
-          syncAndRender();
-        }
-      } else if (gamePhase === 'SELECT_WORKER') {
-        if (boardState[r][c].worker === currentTurn) {
-          selectedWorkerPos = { r, c };
-          gamePhase = 'MOVE';
-          debugLog(`Worker selected at [${r}, ${c}]. Phase changed to MOVE.`);
-          syncAndRender();
-        }
-      } else if (gamePhase === 'MOVE') {
-        if (boardState[r][c].worker === currentTurn) {
-          selectedWorkerPos = { r, c };
-          debugLog(`Switched active worker to [${r}, ${c}].`);
-          syncAndRender();
-          return;
-        }
-
-        const validMoves = getValidMoves(selectedWorkerPos.r, selectedWorkerPos.c);
-        if (validMoves.some(m => m.r === r && m.c === c)) {
-          const from = selectedWorkerPos;
-          const worker = boardState[from.r][from.c].worker;
-
-          boardState[from.r][from.c].worker = 0;
-          boardState[r][c].worker = worker;
-          selectedWorkerPos = { r, c };
-
-          debugLog(`Moved worker from [${from.r}, ${from.c}] to [${r}, ${c}].`);
-
-          if (boardState[r][c].level === 3) {
-            gamePhase = 'GAME_OVER';
-            updateUIBanner(`🎉 PLAYER ${currentTurn} WINS BY CLIMBING LEVEL 3!`);
-            debugLog(`GAME OVER: Player ${currentTurn} reached level 3!`);
-            syncAndRender();
-            return;
-          }
-
-          gamePhase = 'BUILD';
-          debugLog('Phase changed to BUILD.');
-          syncAndRender();
-        }
-      } else if (gamePhase === 'BUILD') {
-        const validBuilds = getValidBuilds(selectedWorkerPos.r, selectedWorkerPos.c);
-        if (validBuilds.some(b => b.r === r && b.c === c)) {
-          if (boardState[r][c].level < 3) {
-            boardState[r][c].level++;
-            debugLog(`Built Level ${boardState[r][c].level} at [${r}, ${c}].`);
-          } else {
-            boardState[r][c].dome = true;
-            debugLog(`Built Dome at [${r}, ${c}].`);
-          }
-
-          selectedWorkerPos = null;
-          currentTurn = currentTurn === 1 ? 2 : 1;
-          gamePhase = 'SELECT_WORKER';
-
-          if (!hasAnyValidMoves(currentTurn)) {
-            gamePhase = 'GAME_OVER';
-            const winner = currentTurn === 1 ? 2 : 1;
-            updateUIBanner(`🎉 PLAYER ${winner} WINS! PLAYER ${currentTurn} HAS NO LEGAL MOVES.`);
-            debugLog(`GAME OVER: Player ${currentTurn} has no valid moves.`);
-            syncAndRender();
-            return;
-          }
-
-          debugLog(`Turn ended. Next player: ${currentTurn}. Phase: SELECT_WORKER`);
-          syncAndRender();
-
-          if (gameMode === 'AI' && currentTurn === 2 && gamePhase !== 'GAME_OVER') {
-            setTimeout(executeAITurn, 600);
-          }
-        }
-      }
-    }
-
-    function getValidMoves(r, c) {
-      const moves = [];
+    /* =========================================================================
+       SANTORINI GAME RULES & VALIDATION LOGIC
+       ========================================================================= */
+    function getValidMoveTiles(r, c) {
+      const valid = [];
       const currentLevel = boardState[r][c].level;
 
       for (let dr = -1; dr <= 1; dr++) {
@@ -632,18 +768,20 @@
           const nc = c + dc;
 
           if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
-            const targetCell = boardState[nr][nc];
-            if (!targetCell.worker && !targetCell.dome && targetCell.level <= currentLevel + 1) {
-              moves.push({ r: nr, c: nc });
+            const target = boardState[nr][nc];
+            // Rule: Target must not have a dome, must not be occupied, and max height climb is +1
+            if (!target.dome && target.worker === 0 && target.level <= currentLevel + 1) {
+              valid.push({ r: nr, c: nc });
             }
           }
         }
       }
-      return moves;
+      return valid;
     }
 
-    function getValidBuilds(r, c) {
-      const builds = [];
+    function getValidBuildTiles(r, c) {
+      const valid = [];
+
       for (let dr = -1; dr <= 1; dr++) {
         for (let dc = -1; dc <= 1; dc++) {
           if (dr === 0 && dc === 0) continue;
@@ -651,208 +789,265 @@
           const nc = c + dc;
 
           if (nr >= 0 && nr < BOARD_SIZE && nc >= 0 && nc < BOARD_SIZE) {
-            const targetCell = boardState[nr][nc];
-            if (!targetCell.worker && !targetCell.dome) {
-              builds.push({ r: nr, c: nc });
+            const target = boardState[nr][nc];
+            // Rule: Target must not have a dome and must not be occupied
+            if (!target.dome && target.worker === 0) {
+              valid.push({ r: nr, c: nc });
             }
           }
         }
       }
-      return builds;
+      return valid;
     }
 
-    function hasAnyValidMoves(player) {
+    function checkHasLegalMoves(player) {
       for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
           if (boardState[r][c].worker === player) {
-            if (getValidMoves(r, c).length > 0) return true;
+            if (getValidMoveTiles(r, c).length > 0) return true;
           }
         }
       }
       return false;
     }
 
-    function executeAITurn() {
+    /* =========================================================================
+       USER INTERACTION & CLICK HANDLER
+       ========================================================================= */
+    function handleTileClick(r, c) {
+      debugLog(`Tile Clicked: [${r}, ${c}]`, { currentTurn, gamePhase, localPlayerRole, gameMode });
+
+      // Guard: Check if it's player's turn in Online Mode
+      if (gameMode === 'ONLINE' && localPlayerRole !== currentTurn) {
+        debugLog('Ignored click: Not local player turn.');
+        return;
+      }
+
+      if (gamePhase === 'GAME_OVER') return;
+
+      // 1. PLACEMENT PHASE
       if (gamePhase === 'PLACEMENT') {
-        const empty = [];
-        for (let r = 0; r < BOARD_SIZE; r++) {
-          for (let c = 0; c < BOARD_SIZE; c++) {
-            if (!boardState[r][c].worker) empty.push({ r, c });
+        if (boardState[r][c].worker === 0) {
+          boardState[r][c].worker = currentTurn;
+          placementCount[currentTurn]++;
+
+          debugLog(`Placed Worker for Player ${currentTurn}. Total placed:`, placementCount);
+
+          // Alternating placement: P1 -> P2 -> P1 -> P2
+          if (placementCount[1] === 1 && placementCount[2] === 0) {
+            currentTurn = 2;
+          } else if (placementCount[1] === 1 && placementCount[2] === 1) {
+            currentTurn = 1;
+          } else if (placementCount[1] === 2 && placementCount[2] === 1) {
+            currentTurn = 2;
+          } else if (placementCount[1] === 2 && placementCount[2] === 2) {
+            // Placement complete! Transition to main gameplay
+            gamePhase = 'MOVE';
+            currentTurn = 1;
+            selectedWorkerPos = null;
+            debugLog('Placement Phase Complete! Moving to main turn gameplay.');
           }
+
+          onGameStateUpdated();
         }
-        const pick = empty[Math.floor(Math.random() * empty.length)];
-        handleTileClick(pick.r, pick.c);
-        if (placementCount[2] < 2) setTimeout(executeAITurn, 400);
-      } else if (gamePhase === 'SELECT_WORKER') {
-        const myWorkers = [];
-        for (let r = 0; r < BOARD_SIZE; r++) {
-          for (let c = 0; c < BOARD_SIZE; c++) {
-            if (boardState[r][c].worker === 2 && getValidMoves(r, c).length > 0) {
-              myWorkers.push({ r, c });
+        return;
+      }
+
+      // 2. MOVE PHASE
+      if (gamePhase === 'MOVE') {
+        // Selecting an owned worker
+        if (boardState[r][c].worker === currentTurn) {
+          selectedWorkerPos = { r, c };
+          debugLog(`Selected Worker at [${r}, ${c}]`);
+          onGameStateUpdated();
+          return;
+        }
+
+        // Executing move to valid target
+        if (selectedWorkerPos) {
+          const validMoves = getValidMoveTiles(selectedWorkerPos.r, selectedWorkerPos.c);
+          const isMoveValid = validMoves.some(m => m.r === r && m.c === c);
+
+          if (isMoveValid) {
+            const fromLevel = boardState[selectedWorkerPos.r][selectedWorkerPos.c].level;
+            const toLevel = boardState[r][c].level;
+
+            // Move worker
+            boardState[selectedWorkerPos.r][selectedWorkerPos.c].worker = 0;
+            boardState[r][c].worker = currentTurn;
+            selectedWorkerPos = { r, c };
+
+            debugLog(`Worker moved from level ${fromLevel} to level ${toLevel}.`);
+
+            // WIN CONDITION: Worker climbs onto Level 3!
+            if (toLevel === 3) {
+              gamePhase = 'GAME_OVER';
+              winner = currentTurn;
+              debugLog(`VICTORY DETECTED! Player ${winner} reached Level 3!`);
+              onGameStateUpdated();
+              return;
             }
+
+            // Transition to BUILD phase
+            gamePhase = 'BUILD';
+            onGameStateUpdated();
           }
         }
-        if (myWorkers.length === 0) return;
-        const pick = myWorkers[Math.floor(Math.random() * myWorkers.length)];
-        handleTileClick(pick.r, pick.c);
-        setTimeout(executeAITurn, 500);
-      } else if (gamePhase === 'MOVE') {
-        const moves = getValidMoves(selectedWorkerPos.r, selectedWorkerPos.c);
-        if (moves.length === 0) return;
-        const winMove = moves.find(m => boardState[m.r][m.c].level === 3);
-        const pick = winMove || moves[Math.floor(Math.random() * moves.length)];
-        handleTileClick(pick.r, pick.c);
-
-        if (gamePhase === 'BUILD') setTimeout(executeAITurn, 500);
-      } else if (gamePhase === 'BUILD') {
-        const builds = getValidBuilds(selectedWorkerPos.r, selectedWorkerPos.c);
-        if (builds.length === 0) return;
-        const pick = builds[Math.floor(Math.random() * builds.length)];
-        handleTileClick(pick.r, pick.c);
+        return;
       }
-    }
 
-    function serializeBoard(grid) {
-      const flat = {};
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-          flat[`${r}_${c}`] = grid[r][c];
-        }
-      }
-      return flat;
-    }
+      // 3. BUILD PHASE
+      if (gamePhase === 'BUILD' && selectedWorkerPos) {
+        const validBuilds = getValidBuildTiles(selectedWorkerPos.r, selectedWorkerPos.c);
+        const isBuildValid = validBuilds.some(b => b.r === r && b.c === c);
 
-    function deserializeBoard(flatObj) {
-      const grid = createEmptyBoard();
-      if (!flatObj) return grid;
-      for (let r = 0; r < BOARD_SIZE; r++) {
-        for (let c = 0; c < BOARD_SIZE; c++) {
-          if (flatObj[`${r}_${c}`]) {
-            grid[r][c] = flatObj[`${r}_${c}`];
+        if (isBuildValid) {
+          if (boardState[r][c].level < 3) {
+            boardState[r][c].level++;
+            debugLog(`Built Level ${boardState[r][c].level} at [${r}, ${c}]`);
+          } else {
+            boardState[r][c].dome = true;
+            debugLog(`Built Dome at [${r}, ${c}]`);
           }
+
+          // End Turn -> Switch to Opponent
+          currentTurn = currentTurn === 1 ? 2 : 1;
+          gamePhase = 'MOVE';
+          selectedWorkerPos = null;
+
+          // Check if Next Player has Legal Moves
+          if (!checkHasLegalMoves(currentTurn)) {
+            gamePhase = 'GAME_OVER';
+            winner = currentTurn === 1 ? 2 : 1; // Opponent wins
+            debugLog(`NO LEGAL MOVES for Player ${currentTurn}! Player ${winner} wins!`);
+          }
+
+          onGameStateUpdated();
         }
       }
-      return grid;
     }
 
-    function syncAndRender() {
+    /* =========================================================================
+       STATE SYNC & FIREBASE LOGIC
+       ========================================================================= */
+    function onGameStateUpdated() {
       render3DBoardFromState();
       updateUIStatus();
 
+      // Trigger Confetti Celebrations if Game Over
+      if (gamePhase === 'GAME_OVER' && winner > 0 && !hasCelebratedWin) {
+        triggerWinCelebration(winner);
+      }
+
+      // Sync to Firebase if Online
       if (gameMode === 'ONLINE' && currentRoomRef) {
-        ignoreNextRemoteSync = true;
-        const payload = {
-          flatBoard: serializeBoard(boardState),
-          currentTurn,
-          gamePhase,
-          placementCount,
-          selectedWorkerPos: selectedWorkerPos || { r: -1, c: -1 },
-          lastUpdated: Date.now()
-        };
-
-        debugLog('Attempting Firebase room state WRITE...', payload);
-
-        currentRoomRef.set(payload)
-          .then(() => {
-            debugLog('Firebase WRITE SUCCESS!');
-          })
-          .catch((err) => {
-            debugLog('Firebase WRITE FAILED / REJECTED', err);
-          });
+        syncStateToFirebase();
       }
     }
 
-    function resetGameLogic() {
-      debugLog('Resetting game logic...');
-      boardState = createEmptyBoard();
-      currentTurn = 1;
-      gamePhase = 'PLACEMENT';
-      placementCount = { 1: 0, 2: 0 };
-      selectedWorkerPos = null;
-      syncAndRender();
-    }
+    function updateUIStatus() {
+      const modeText = document.getElementById('txt-game-mode');
+      const turnIndicator = document.getElementById('turn-indicator');
+      const instructionText = document.getElementById('phase-instruction');
 
-    function initUI() {
-      const modalMenu = document.getElementById('modal-start-menu');
-      const modalRules = document.getElementById('modal-rules');
-      const onlinePanel = document.getElementById('online-options-panel');
-
-      document.getElementById('opt-mode-local').onclick = () => setMode('LOCAL');
-      document.getElementById('opt-mode-ai').onclick = () => setMode('AI');
-      document.getElementById('opt-mode-online').onclick = () => setMode('ONLINE');
-
-      function setMode(mode) {
-        gameMode = mode;
-        debugLog(`Game mode selected: ${mode}`);
-        ['local', 'ai', 'online'].forEach(m => {
-          const btn = document.getElementById(`opt-mode-${m}`);
-          const active = m.toUpperCase() === mode;
-          btn.className = `btn-mode p-3 rounded-xl font-bold text-sm flex flex-col items-center gap-1 border transition ${
-            active ? 'bg-amber-500 text-slate-950 border-amber-400' : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
-          }`;
-        });
-        onlinePanel.classList.toggle('hidden', mode !== 'ONLINE');
+      // Mode Badge
+      if (gameMode === 'ONLINE') {
+        const roleLabel = localPlayerRole === 1 ? 'HOST (Player 1)' : 'GUEST (Player 2)';
+        modeText.innerText = `ONLINE: ${roomCode} | You are ${roleLabel}`;
+      } else {
+        modeText.innerText = `LOCAL PASS & PLAY`;
       }
 
-      document.getElementById('btn-start-game').onclick = () => {
-        modalMenu.classList.add('hidden');
-        document.getElementById('btn-close-menu').classList.remove('hidden');
-        resetGameLogic();
+      // Active Turn Indicator
+      const isMyTurn = (gameMode === 'LOCAL') || (localPlayerRole === currentTurn);
+      const turnLabel = currentTurn === 1 ? 'PLAYER 1 (Blue)' : 'PLAYER 2 (Gold)';
+      turnIndicator.innerText = `${turnLabel}${isMyTurn ? ' - YOUR TURN!' : ''}`;
+      turnIndicator.className = currentTurn === 1 ? 'text-xs font-semibold uppercase tracking-wider text-blue-400' : 'text-xs font-semibold uppercase tracking-wider text-amber-400';
+
+      // Phase Instructions
+      if (gamePhase === 'PLACEMENT') {
+        instructionText.innerText = `Place Worker ${placementCount[currentTurn] + 1} on any empty tile`;
+      } else if (gamePhase === 'MOVE') {
+        instructionText.innerText = selectedWorkerPos ? 'Click adjacent green tile to MOVE' : 'Select one of your workers';
+      } else if (gamePhase === 'BUILD') {
+        instructionText.innerText = 'Click adjacent cyan tile to BUILD structure/dome';
+      } else if (gamePhase === 'GAME_OVER') {
+        instructionText.innerText = `Game Over - Player ${winner} Victory!`;
+      }
+    }
+
+    function syncStateToFirebase() {
+      if (!currentRoomRef) return;
+
+      const flatBoard = {};
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          flatBoard[`${r}_${c}`] = boardState[r][c];
+        }
+      }
+
+      const payload = {
+        flatBoard,
+        currentTurn,
+        gamePhase,
+        winner,
+        placementCount,
+        selectedWorkerPos: selectedWorkerPos || { r: -1, c: -1 },
+        lastUpdated: Date.now()
       };
 
-      document.getElementById('btn-close-menu').onclick = () => modalMenu.classList.add('hidden');
-      document.getElementById('btn-open-menu').onclick = () => modalMenu.classList.remove('hidden');
+      lastSyncedTimestamp = payload.lastUpdated;
+      ignoreNextRemoteSync = true;
 
-      document.getElementById('btn-open-rules').onclick = () => modalRules.classList.remove('hidden');
-      document.getElementById('btn-close-rules').onclick = () => modalRules.classList.add('hidden');
-      document.getElementById('btn-understand-rules').onclick = () => modalRules.classList.add('hidden');
-
-      document.getElementById('btn-restart').onclick = () => resetGameLogic();
-
-      document.getElementById('btn-create-room').onclick = () => setupOnlineRoom(true);
-      document.getElementById('btn-join-room').onclick = () => setupOnlineRoom(false);
+      debugLog('Attempting Firebase room state WRITE...', payload);
+      currentRoomRef.set(payload)
+        .then(() => debugLog('Firebase WRITE Success!'))
+        .catch(err => debugLog('Firebase WRITE FAILED / REJECTED', err));
     }
 
     function setupOnlineRoom(isCreating) {
       if (!firebaseDb) {
-        const msg = 'Firebase not initialized. Check console or config.';
-        document.getElementById('online-status').innerText = msg;
-        debugLog('ERROR: ' + msg);
+        document.getElementById('online-status').innerText = 'Firebase not initialized.';
         return;
       }
 
-      const roomCode = document.getElementById('input-room-code').value.trim().toUpperCase();
-      if (!roomCode || roomCode.length < 3) {
-        const msg = 'Enter a valid Room Code (3+ letters)';
-        document.getElementById('online-status').innerText = msg;
-        debugLog('WARNING: ' + msg);
-        return;
+      let code = document.getElementById('input-room-code').value.trim().toUpperCase();
+      if (!code || code.length < 3) {
+        if (isCreating) {
+          // Generate Random 4-letter code
+          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+          code = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+          document.getElementById('input-room-code').value = code;
+        } else {
+          document.getElementById('online-status').innerText = 'Enter a valid Room Code!';
+          return;
+        }
       }
 
-      debugLog(`Setting up Online Room. Code: "${roomCode}", Action: ${isCreating ? 'CREATE' : 'JOIN'}`);
-
+      roomCode = code;
       currentRoomRef = firebaseDb.ref('rooms/' + roomCode);
       gameMode = 'ONLINE';
 
-      // Auto close modal & reveal close button
-      document.getElementById('modal-start-menu').classList.add('hidden');
-      document.getElementById('btn-close-menu').classList.remove('hidden');
+      // Show Code Copy button
+      const copyBtn = document.getElementById('btn-copy-code');
+      copyBtn.classList.remove('hidden');
+      document.getElementById('txt-room-code').innerText = `ROOM: ${roomCode}`;
+
+      // Close Lobby Menu
+      closeStartMenu();
 
       if (isCreating) {
         localPlayerRole = 1;
-        isHost = true;
         debugLog(`Assigned as HOST (Player 1) for room "${roomCode}"`);
-        currentRoomRef.onDisconnect().remove();
         resetGameLogic();
+        currentRoomRef.onDisconnect().remove();
       } else {
         localPlayerRole = 2;
-        isHost = false;
         debugLog(`Assigned as GUEST (Player 2) for room "${roomCode}"`);
       }
 
-      // Subscribe to remote updates
+      // Attach Listener & Instantly Inspect Room State
       debugLog(`Attaching database listener on path: "rooms/${roomCode}"`);
-      
       currentRoomRef.on('value', snapshot => {
         debugLog(`Firebase 'value' event triggered for room "${roomCode}".`);
 
@@ -866,51 +1061,113 @@
         debugLog('Snapshot data received:', data);
 
         if (data) {
-          boardState = deserializeBoard(data.flatBoard);
+          // Instantly sync room state and render!
+          deserializeFlatBoard(data.flatBoard);
           currentTurn = data.currentTurn;
           gamePhase = data.gamePhase;
+          winner = data.winner || 0;
           placementCount = data.placementCount || { 1: 0, 2: 0 };
           selectedWorkerPos = (data.selectedWorkerPos && data.selectedWorkerPos.r !== -1) ? data.selectedWorkerPos : null;
-          
-          render3DBoardFromState();
-          updateUIStatus();
-        } else {
-          debugLog(`Room "${roomCode}" is empty or has no state.`);
+
+          gameMode = 'ONLINE';
+          onGameStateUpdated();
+        } else if (!isCreating) {
+          document.getElementById('online-status').innerText = `Room "${roomCode}" does not exist yet!`;
         }
-      }, (error) => {
-        debugLog('Firebase READ ERROR / Permission Denied:', error);
+      }, err => {
+        debugLog('Firebase READ Error:', err);
       });
     }
 
-    function updateUIStatus() {
-      const modeBadge = document.getElementById('badge-mode');
-      modeBadge.innerText = gameMode;
-
-      const pColor = document.getElementById('player-indicator-color');
-      const pText = document.getElementById('player-indicator-text');
-      const instruction = document.getElementById('turn-instruction');
-
-      pColor.style.backgroundColor = currentTurn === 1 ? '#f97316' : '#06b6d4';
-      pText.innerText = `Player ${currentTurn}'s Turn`;
-
-      if (gameMode === 'ONLINE') {
-        const roleText = localPlayerRole === currentTurn ? ' (YOUR TURN)' : ' (Waiting...)';
-        pText.innerText = `Player ${currentTurn}${roleText}`;
-      }
-
-      if (gamePhase === 'PLACEMENT') {
-        instruction.innerText = `Place Worker (${placementCount[currentTurn] + 1}/2) on any empty space.`;
-      } else if (gamePhase === 'SELECT_WORKER') {
-        instruction.innerText = 'Select one of your workers to move.';
-      } else if (gamePhase === 'MOVE') {
-        instruction.innerText = 'Click a green highlighted space to MOVE.';
-      } else if (gamePhase === 'BUILD') {
-        instruction.innerText = 'Click a blue highlighted space to BUILD.';
+    function deserializeFlatBoard(flatBoard) {
+      if (!flatBoard) return;
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const key = `${r}_${c}`;
+          if (flatBoard[key]) {
+            boardState[r][c] = { ...flatBoard[key] };
+          }
+        }
       }
     }
 
-    function updateUIBanner(msg) {
-      document.getElementById('turn-instruction').innerText = msg;
+    /* =========================================================================
+       VICTORY CELEBRATION & CONFETTI
+       ========================================================================= */
+    function triggerWinCelebration(winningPlayer) {
+      hasCelebratedWin = true;
+      debugLog(`Triggering Confetti Celebration for Player ${winningPlayer}`);
+
+      // Fire confetti bursts
+      if (typeof confetti === 'function') {
+        const count = 200;
+        const defaults = { origin: { y: 0.6 } };
+
+        function fire(particleRatio, opts) {
+          confetti(Object.assign({}, defaults, opts, {
+            particleCount: Math.floor(count * particleRatio)
+          }));
+        }
+
+        fire(0.25, { spread: 26, startVelocity: 55 });
+        fire(0.2, { spread: 60 });
+        fire(0.35, { spread: 100, decay: 0.91, scalar: 0.8 });
+        fire(0.1, { spread: 120, startVelocity: 25, decay: 0.92, scalar: 1.2 });
+        fire(0.1, { spread: 120, startVelocity: 45 });
+      }
+
+      // Display Victory Modal
+      const modal = document.getElementById('modal-victory');
+      const title = document.getElementById('victory-title');
+      const subtitle = document.getElementById('victory-subtitle');
+
+      title.innerText = `PLAYER ${winningPlayer} VICTORY!`;
+      title.className = winningPlayer === 1 ? 'font-cinzel text-2xl font-black text-blue-400 tracking-wide' : 'font-cinzel text-2xl font-black text-yellow-400 tracking-wide';
+      subtitle.innerText = `Worker ascended onto Level 3 building structure!`;
+      modal.classList.remove('hidden');
+    }
+
+    /* =========================================================================
+       RAYCASTING, EVENT LISTENERS, & RESET METHODS
+       ========================================================================= */
+    function onPointerMove(event) {
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(boardGroup.children, true);
+
+      const tooltip = document.getElementById('tile-tooltip');
+      const tooltipText = document.getElementById('tooltip-text');
+
+      if (intersects.length > 0) {
+        let obj = intersects[0].object;
+        while (obj && !obj.userData.r && obj.userData.r !== 0 && obj.parent) {
+          obj = obj.parent;
+        }
+
+        if (obj && obj.userData.r !== undefined) {
+          const { r, c } = obj.userData;
+          hoveredCell = { r, c };
+          const cell = boardState[r][c];
+
+          tooltipText.innerText = `Tile [${r}, ${c}] | Level ${cell.level}${cell.dome ? ' (Dome)' : ''}`;
+          tooltip.style.left = `${event.clientX + 12}px`;
+          tooltip.style.top = `${event.clientY + 12}px`;
+          tooltip.classList.remove('opacity-0');
+          return;
+        }
+      }
+
+      hoveredCell = null;
+      tooltip.classList.add('opacity-0');
+    }
+
+    function onPointerDown(event) {
+      if (event.button !== 0) return; // Main click only
+      if (hoveredCell) {
+        handleTileClick(hoveredCell.r, hoveredCell.c);
+      }
     }
 
     function onWindowResize() {
@@ -919,11 +1176,71 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     }
 
+    function resetGameLogic() {
+      debugLog('Resetting game logic...');
+      boardState = Array(BOARD_SIZE).fill(null).map(() =>
+        Array(BOARD_SIZE).fill(null).map(() => ({ level: 0, dome: false, worker: 0 }))
+      );
+      currentTurn = 1;
+      gamePhase = 'PLACEMENT';
+      winner = 0;
+      placementCount = { 1: 0, 2: 0 };
+      selectedWorkerPos = null;
+      hasCelebratedWin = false;
+
+      document.getElementById('modal-victory').classList.add('hidden');
+      onGameStateUpdated();
+    }
+
+    function restartCurrentGame() {
+      resetGameLogic();
+    }
+
+    function startLocalGame() {
+      gameMode = 'LOCAL';
+      localPlayerRole = 0;
+      document.getElementById('btn-copy-code').classList.add('hidden');
+      closeStartMenu();
+      resetGameLogic();
+    }
+
+    function openStartMenu() {
+      document.getElementById('modal-start-menu').classList.remove('hidden');
+      document.getElementById('btn-close-menu').classList.remove('hidden');
+    }
+
+    function closeStartMenu() {
+      document.getElementById('modal-start-menu').classList.add('hidden');
+    }
+
+    /* =========================================================================
+       ANIMATION LOOP
+       ========================================================================= */
     function animate() {
       requestAnimationFrame(animate);
+
+      // Pulse turn halo rings
+      const time = clock ? clock.getElapsedTime() : Date.now() * 0.003;
+      highlightGroup.children.forEach(child => {
+        if (child.name === 'turnHalo') {
+          const scale = 1 + Math.sin(time * 5) * 0.08;
+          child.scale.set(scale, scale, 1);
+        }
+      });
+
       controls.update();
       renderer.render(scene, camera);
     }
+
+    const clock = new THREE.Clock();
+
+    // App Initialization on Window Load
+    window.onload = function () {
+      debugLog('App Initializing...');
+      initFirebase();
+      init3DScene();
+      resetGameLogic();
+    };
   </script>
 </body>
 </html>
