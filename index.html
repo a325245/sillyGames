@@ -197,12 +197,6 @@
 
     let placementCount = { 1: 0, 2: 0 };
     let selectedWorkerPos = null; // {r, c}
-    let godPowerState = {
-      p1Power: null,
-      p2Power: null,
-      hasBuiltPreMove: false,
-      buildsRemaining: 1
-    };
 
     // Scene & Three.js setup
     let scene, camera, renderer, controls;
@@ -335,8 +329,12 @@
           const x = (c - 2) * 2;
           const z = (r - 2) * 2;
 
-          // Invisible raycast target plane at Y = 0.05
-          const planeMat = new THREE.MeshBasicMaterial({ visible: false });
+          // Translucent plane that still receives raycast hits cleanly
+          const planeMat = new THREE.MeshBasicMaterial({ 
+            transparent: true, 
+            opacity: 0, 
+            depthWrite: false 
+          });
           const plane = new THREE.Mesh(planeGeo, planeMat);
           plane.position.set(x, 0.05, z);
           plane.userData = { r, c };
@@ -385,7 +383,6 @@
               mesh = new THREE.Mesh(geo, mat);
               mesh.position.set(x, 0.4, z);
             } else if (lvl === 2) {
-              // Level 2 Romanesque Pillar Block
               mesh = new THREE.Group();
               const coreGeo = new THREE.BoxGeometry(1.4, 0.8, 1.4);
               const coreMat = new THREE.MeshStandardMaterial({ color: COLORS.STONE_L2, roughness: 0.5, flatShading: true });
@@ -449,7 +446,6 @@
             workerGroup.position.set(x, heightY + 0.1, z);
             workerGroup.userData = { owner: cell.worker.owner, id: cell.worker.id, r, c };
 
-            // Selection animation bobbing
             if (selectedWorkerPos && selectedWorkerPos.r === r && selectedWorkerPos.c === c) {
               workerGroup.position.y += 0.2;
             }
@@ -463,7 +459,6 @@
     }
 
     function updateHighlightOverlays() {
-      // Clear highlights
       for (let r = 0; r < BOARD_SIZE; r++) {
         for (let c = 0; c < BOARD_SIZE; c++) {
           highlightDiscs[r][c].visible = false;
@@ -472,7 +467,6 @@
 
       if (gamePhase === 'GAME_OVER') return;
 
-      // Online turn check
       if (gameMode === 'ONLINE' && currentTurn !== localPlayerRole) return;
 
       if (gamePhase === 'PLACEMENT') {
@@ -509,16 +503,14 @@
       disc.visible = true;
     }
 
-    // Pointer/Raycast Click Logic
     function onPointerDown(e) {
-      // Ignore if clicking UI
       if (e.target.tagName !== 'CANVAS') return;
 
       mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
       mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
 
       raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(gridPlanes);
+      const intersects = raycaster.intersectObjects(gridPlanes.flat());
 
       if (intersects.length > 0) {
         const { r, c } = intersects[0].object.userData;
@@ -529,7 +521,6 @@
     function handleTileClick(r, c) {
       if (gamePhase === 'GAME_OVER') return;
 
-      // Online restriction
       if (gameMode === 'ONLINE' && currentTurn !== localPlayerRole) return;
 
       if (gamePhase === 'PLACEMENT') {
@@ -553,7 +544,6 @@
           syncAndRender();
         }
       } else if (gamePhase === 'MOVE') {
-        // Allow re-selecting another worker of your own
         if (boardState[r][c].worker && boardState[r][c].worker.owner === currentTurn) {
           selectedWorkerPos = { r, c };
           syncAndRender();
@@ -572,7 +562,6 @@
           boardState[r][c].worker = worker;
           selectedWorkerPos = { r, c };
 
-          // Win Condition Check
           if (targetLevel === 3) {
             gamePhase = 'GAME_OVER';
             updateUIBanner(`🎉 PLAYER ${currentTurn} WINS BY CLIMBING LEVEL 3!`);
@@ -594,12 +583,10 @@
             boardState[r][c].dome = true;
           }
 
-          // Pass Turn
           selectedWorkerPos = null;
           currentTurn = currentTurn === 1 ? 2 : 1;
           gamePhase = 'SELECT_WORKER';
 
-          // Check if next player is stuck
           if (!hasAnyValidMoves(currentTurn)) {
             gamePhase = 'GAME_OVER';
             const winner = currentTurn === 1 ? 2 : 1;
@@ -610,7 +597,6 @@
 
           syncAndRender();
 
-          // AI Turn Trigger
           if (gameMode === 'AI' && currentTurn === 2 && gamePhase !== 'GAME_OVER') {
             setTimeout(executeAITurn, 600);
           }
@@ -669,7 +655,6 @@
       return false;
     }
 
-    // AI Logic
     function executeAITurn() {
       if (gamePhase === 'PLACEMENT') {
         const empty = [];
@@ -698,7 +683,6 @@
         const moves = getValidMoves(selectedWorkerPos.r, selectedWorkerPos.c);
         if (moves.length === 0) return;
         
-        // Priority: winning move onto level 3
         const winMove = moves.find(m => boardState[m.r][m.c].level === 3);
         const pick = winMove || moves[Math.floor(Math.random() * moves.length)];
         handleTileClick(pick.r, pick.c);
@@ -712,7 +696,6 @@
       }
     }
 
-    // Firebase Multiplayer Syncing
     function syncAndRender() {
       render3DBoardFromState();
       updateUIStatus();
@@ -738,13 +721,11 @@
       syncAndRender();
     }
 
-    // UI & Event Handler Wiring
     function initUI() {
       const modalMenu = document.getElementById('modal-start-menu');
       const modalRules = document.getElementById('modal-rules');
       const onlinePanel = document.getElementById('online-options-panel');
 
-      // Mode toggles
       document.getElementById('opt-mode-local').onclick = () => setMode('LOCAL');
       document.getElementById('opt-mode-ai').onclick = () => setMode('AI');
       document.getElementById('opt-mode-online').onclick = () => setMode('ONLINE');
@@ -761,7 +742,6 @@
         onlinePanel.classList.toggle('hidden', mode !== 'ONLINE');
       }
 
-      // Buttons
       document.getElementById('btn-start-game').onclick = () => {
         godPowersEnabled = document.getElementById('toggle-god-powers').checked;
         modalMenu.classList.add('hidden');
@@ -778,7 +758,6 @@
 
       document.getElementById('btn-restart').onclick = () => resetGameLogic();
 
-      // Firebase Online Buttons
       document.getElementById('btn-create-room').onclick = () => setupOnlineRoom(true);
       document.getElementById('btn-join-room').onclick = () => setupOnlineRoom(false);
     }
@@ -802,6 +781,10 @@
       if (isCreating) {
         localPlayerRole = 1;
         isHost = true;
+        
+        // Auto-clean room when host disconnects
+        currentRoomRef.onDisconnect().remove();
+
         currentRoomRef.set({
           boardState,
           currentTurn: 1,
@@ -817,7 +800,6 @@
         document.getElementById('online-status').innerText = `Joined Room "${roomCode}" as Player 2!`;
       }
 
-      // Listen for database changes
       currentRoomRef.on('value', snapshot => {
         const data = snapshot.val();
         if (data) {
@@ -872,8 +854,6 @@
     function animate() {
       requestAnimationFrame(animate);
       controls.update();
-
-      // Subtle rotation or animation updates can be placed here
       renderer.render(scene, camera);
     }
   </script>
