@@ -264,8 +264,7 @@
     // Firebase synchronization
     let firebaseDb = null;
     let currentRoomRef = null;
-    let lastSyncedTimestamp = 0;
-    let ignoreNextRemoteSync = false;
+    let lastLocalWriteTimestamp = 0;
     let hasCelebratedWin = false;
 
     // Three.js scene references
@@ -986,6 +985,9 @@
         }
       }
 
+      const now = Date.now();
+      lastLocalWriteTimestamp = now;
+
       const payload = {
         flatBoard,
         currentTurn,
@@ -993,15 +995,11 @@
         winner,
         placementCount,
         selectedWorkerPos: selectedWorkerPos || { r: -1, c: -1 },
-        lastUpdated: Date.now()
+        lastUpdated: now
       };
 
-      lastSyncedTimestamp = payload.lastUpdated;
-      ignoreNextRemoteSync = true;
-
-      debugLog('Attempting Firebase room state WRITE...', payload);
+      debugLog('Syncing room state to Firebase...', { room: roomCode, timestamp: now });
       currentRoomRef.set(payload)
-        .then(() => debugLog('Firebase WRITE Success!'))
         .catch(err => debugLog('Firebase WRITE FAILED / REJECTED', err));
     }
 
@@ -1022,6 +1020,12 @@
           document.getElementById('online-status').innerText = 'Enter a valid Room Code!';
           return;
         }
+      }
+
+      // Detach any pre-existing listeners on previous room reference to avoid listener stacking
+      if (currentRoomRef) {
+        currentRoomRef.off();
+        debugLog('Cleaned up previous Firebase listener.');
       }
 
       roomCode = code;
@@ -1049,18 +1053,16 @@
       // Attach Listener & Instantly Inspect Room State
       debugLog(`Attaching database listener on path: "rooms/${roomCode}"`);
       currentRoomRef.on('value', snapshot => {
-        debugLog(`Firebase 'value' event triggered for room "${roomCode}".`);
-
-        if (ignoreNextRemoteSync) {
-          debugLog('Echo guard active: Skipped processing self-triggered remote sync.');
-          ignoreNextRemoteSync = false;
-          return;
-        }
-
         const data = snapshot.val();
-        debugLog('Snapshot data received:', data);
 
         if (data) {
+          // Robust timestamp-based echo guard: skip self-triggered local writes
+          if (data.lastUpdated && data.lastUpdated === lastLocalWriteTimestamp) {
+            return;
+          }
+
+          debugLog(`Remote state update received for room "${roomCode}".`);
+
           // Instantly sync room state and render!
           deserializeFlatBoard(data.flatBoard);
           currentTurn = data.currentTurn;
@@ -1197,6 +1199,10 @@
     }
 
     function startLocalGame() {
+      if (currentRoomRef) {
+        currentRoomRef.off();
+        currentRoomRef = null;
+      }
       gameMode = 'LOCAL';
       localPlayerRole = 0;
       document.getElementById('btn-copy-code').classList.add('hidden');
