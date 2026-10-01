@@ -142,7 +142,7 @@
 	<!-- Start / Join Menu Modal -->
 	<div id="modal-start-menu" class="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center pointer-events-auto z-40">
 	  <div class="bg-white p-6 rounded-xl shadow-2xl w-80 text-center">
-		<h2 class="text-3xl font-black text-blue-600 mb-6">SANTORINI</h2>
+		<h2 class="text-xl font-bold text-blue-600 mb-4">Start Game</h2>
 
 		<div class="space-y-4">
 		  <input type="text" id="input-player-name" placeholder="YOUR NAME" class="w-full border-2 border-gray-300 rounded-lg px-3 py-2 text-center font-bold text-lg focus:outline-none focus:border-blue-500">
@@ -440,8 +440,12 @@
 		gamePhase = 'GAME_OVER';
 		winner = playerNum;
 		confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: (playerNum===1) ? ['#2563eb','#ffffff'] : ['#dc2626','#ffffff'] });
+		debugLog('Game Over! Player ' + playerNum + ' wins!');
 		updateUIStatus();
-		if (gameMode === 'LOCAL' || isLocalTurn()) syncRoomState();
+		if (gameMode === 'ONLINE') {
+		  debugLog('Syncing win state to Firebase for both players');
+		  syncRoomState();
+		}
 	  }
 
 	  function processClick(r, c) {
@@ -834,7 +838,7 @@
 		info.innerText = `Turn: ${pName}`;
 
 		if (!isLocalTurn()) {
-		  inst.innerText = "Waiting for opponent...";
+		  inst.innerText = "⏳ Opponent's turn...";
 		  return;
 		}
 
