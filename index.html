@@ -41,7 +41,6 @@
 <div id="canvas-container"></div>
 
 <div id="ui-layer" class="flex flex-col justify-between p-4">
-  <!-- Top Bar -->
   <div class="flex justify-between items-start pointer-events-auto">
     <div class="bg-white p-3 rounded-lg shadow-lg">
       <h1 class="text-2xl font-extrabold text-blue-600 mb-1">SANTORINI</h1>
@@ -62,6 +61,8 @@
     <h2 class="text-3xl font-black text-blue-600 mb-6">SANTORINI</h2>
     
     <div class="space-y-4">
+      <input type="text" id="input-player-name" placeholder="YOUR NAME" class="w-full border-2 border-gray-300 rounded-lg px-3 py-2 text-center font-bold text-lg focus:outline-none focus:border-blue-500">
+
       <button id="btn-local-play" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-lg transition">
         Local Pass & Play
       </button>
@@ -113,39 +114,36 @@ const firebaseDb = firebase.database();
 // ==========================================
 // 2. GLOBAL STATE & VARIABLES
 // ==========================================
-let gameMode = 'LOCAL'; // 'LOCAL' or 'ONLINE'
-let localPlayerRole = 1; // 1 (Blue) or 2 (Red)
+let gameMode = 'LOCAL'; 
+let localPlayerRole = 1; 
 let isHost = true;
+let localPlayerName = '';
 let currentRoomRef = null;
 let roomCodeDisplay = '';
 
-// Unique ID for this browser session to strictly ignore our own Firebase echoes
 const localSessionId = Math.random().toString(36).substring(2, 10);
 
-// Game Logic State
 let boardState = [];
 let currentTurn = 1; 
-let gamePhase = 'PLACE'; // PLACE, MOVE, BUILD, GAME_OVER
+let gamePhase = 'PLACE';
 let placementCount = { 1: 0, 2: 0 };
 let selectedWorkerPos = null;
 let winner = 0;
 
-// Three.js Variables
 let scene, camera, renderer, controls, raycaster, mouse;
 let boardGroup, highlightGroup;
 
-// Materials
 const matGrass = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
-const matTile = new THREE.MeshLambertMaterial({ color: 0xe0e0e0 });
+const matTile = new THREE.MeshLambertMaterial({ color: 0xc4c4c4 });
 const matLevel1 = new THREE.MeshLambertMaterial({ color: 0xffffff });
 const matLevel2 = new THREE.MeshLambertMaterial({ color: 0xf5f5f5 });
-const matLevel3 = new THREE.MeshLambertMaterial({ color: 0xebebeb });
-const matDome = new THREE.MeshLambertMaterial({ color: 0x2196F3 });
-const matPlayer1 = new THREE.MeshLambertMaterial({ color: 0x1E88E5 });
-const matPlayer2 = new THREE.MeshLambertMaterial({ color: 0xE53935 });
-const matHighlightMove = new THREE.MeshBasicMaterial({ color: 0x00FF00, opacity: 0.4, transparent: true });
-const matHighlightBuild = new THREE.MeshBasicMaterial({ color: 0x00FFFF, opacity: 0.5, transparent: true });
-const matHighlightSelect = new THREE.MeshBasicMaterial({ color: 0xFFD700, opacity: 0.6, transparent: true });
+const matLevel3 = new THREE.MeshLambertMaterial({ color: 0xe0e0e0 });
+const matDome = new THREE.MeshLambertMaterial({ color: 0x0ea5e9 }); 
+const matPlayer1 = new THREE.MeshLambertMaterial({ color: 0x2563eb });
+const matPlayer2 = new THREE.MeshLambertMaterial({ color: 0xdc2626 });
+const matHighlightMove = new THREE.MeshBasicMaterial({ color: 0x22c55e, opacity: 0.5, transparent: true });
+const matHighlightBuild = new THREE.MeshBasicMaterial({ color: 0x0ea5e9, opacity: 0.6, transparent: true });
+const matHighlightSelect = new THREE.MeshBasicMaterial({ color: 0xeab308, opacity: 0.6, transparent: true });
 
 // ==========================================
 // 3. DEBUG LOGGING
@@ -192,15 +190,10 @@ function initBoardState() {
   }
 }
 
-function serializeBoard() {
-  return boardState.flat();
-}
-
+function serializeBoard() { return boardState.flat(); }
 function deserializeBoard(flatArray) {
   const newBoard = [];
-  for (let r = 0; r < 5; r++) {
-    newBoard.push(flatArray.slice(r * 5, r * 5 + 5));
-  }
+  for (let r = 0; r < 5; r++) newBoard.push(flatArray.slice(r * 5, r * 5 + 5));
   return newBoard;
 }
 
@@ -226,12 +219,13 @@ function syncRoomState() {
     placementCount: placementCount,
     selectedWorkerPos: selectedWorkerPos || {r: -1, c: -1},
     winner: winner,
-    lastWriter: localSessionId, // Used to reject our own echoes
+    lastWriter: localSessionId, 
     lastUpdated: firebase.database.ServerValue.TIMESTAMP
   };
   
   debugLog('Syncing to Firebase (Session: ' + localSessionId + ')...');
-  currentRoomRef.set(payload).catch(err => debugLog("Firebase Write Error:", err));
+  // Use .update() instead of .set() to avoid overwriting the players map
+  currentRoomRef.update(payload).catch(err => debugLog("Firebase Write Error:", err));
 }
 
 // ==========================================
@@ -251,9 +245,7 @@ function getValidMoves(r, c) {
       const nr = r + dr, nc = c + dc;
       if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) {
         const target = boardState[nr][nc];
-        if (!target.hasDome && target.worker === 0 && target.level <= cell.level + 1) {
-          moves.push({ r: nr, c: nc });
-        }
+        if (!target.hasDome && target.worker === 0 && target.level <= cell.level + 1) moves.push({ r: nr, c: nc });
       }
     }
   }
@@ -268,9 +260,7 @@ function getValidBuilds(r, c) {
       const nr = r + dr, nc = c + dc;
       if (nr >= 0 && nr < 5 && nc >= 0 && nc < 5) {
         const target = boardState[nr][nc];
-        if (!target.hasDome && target.worker === 0) {
-          builds.push({ r: nr, c: nc });
-        }
+        if (!target.hasDome && target.worker === 0) builds.push({ r: nr, c: nc });
       }
     }
   }
@@ -279,15 +269,11 @@ function getValidBuilds(r, c) {
 
 function checkWinCondition(r, c) {
   if (boardState[r][c].level === 3) return true;
-  
-  // Check if opponent has no valid moves
   const opp = currentTurn === 1 ? 2 : 1;
   let hasMove = false;
   for(let row=0; row<5; row++){
     for(let col=0; col<5; col++){
-      if(boardState[row][col].worker === opp) {
-        if(getValidMoves(row, col).length > 0) hasMove = true;
-      }
+      if(boardState[row][col].worker === opp && getValidMoves(row, col).length > 0) hasMove = true;
     }
   }
   return !hasMove;
@@ -296,7 +282,7 @@ function checkWinCondition(r, c) {
 function triggerWin(playerNum) {
   gamePhase = 'GAME_OVER';
   winner = playerNum;
-  confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: (playerNum===1) ? ['#1E88E5','#ffffff'] : ['#E53935','#ffffff'] });
+  confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: (playerNum===1) ? ['#2563eb','#ffffff'] : ['#dc2626','#ffffff'] });
   updateUIStatus();
   if (gameMode === 'LOCAL' || isLocalTurn()) syncRoomState();
 }
@@ -308,10 +294,15 @@ function processClick(r, c) {
     if (boardState[r][c].worker === 0) {
       boardState[r][c].worker = currentTurn;
       placementCount[currentTurn]++;
-      if (placementCount[currentTurn] === 2) {
-        currentTurn = currentTurn === 1 ? 2 : 1;
-        if (placementCount[1] === 2 && placementCount[2] === 2) gamePhase = 'MOVE';
+      
+      const totalPlaced = placementCount[1] + placementCount[2];
+      if (totalPlaced === 4) {
+        gamePhase = 'MOVE';
+        currentTurn = 1; // P1 always takes the first standard turn
+      } else {
+        currentTurn = currentTurn === 1 ? 2 : 1; // Alternate placement
       }
+      
       syncRoomState();
       render3DBoardFromState();
       updateUIStatus();
@@ -320,13 +311,12 @@ function processClick(r, c) {
   else if (gamePhase === 'MOVE') {
     if (boardState[r][c].worker === currentTurn) {
       selectedWorkerPos = { r, c };
-      syncRoomState(); // Sync selection so opponent sees glow
+      syncRoomState(); 
       render3DBoardFromState();
       updateUIStatus();
     } else if (selectedWorkerPos) {
       const validMoves = getValidMoves(selectedWorkerPos.r, selectedWorkerPos.c);
       if (validMoves.some(m => m.r === r && m.c === c)) {
-        // Execute Move
         boardState[r][c].worker = currentTurn;
         boardState[selectedWorkerPos.r][selectedWorkerPos.c].worker = 0;
         selectedWorkerPos = { r, c };
@@ -342,7 +332,6 @@ function processClick(r, c) {
         render3DBoardFromState();
         updateUIStatus();
       } else {
-        // Clicked invalid spot, deselect
         selectedWorkerPos = null;
         syncRoomState();
         render3DBoardFromState();
@@ -361,12 +350,9 @@ function processClick(r, c) {
         currentTurn = currentTurn === 1 ? 2 : 1;
         gamePhase = 'MOVE';
         
-        // Check if new player is trapped instantly
-        if (checkWinCondition(0,0)) {
-          triggerWin(currentTurn === 1 ? 2 : 1);
-        } else {
-          syncRoomState();
-        }
+        if (checkWinCondition(0,0)) triggerWin(currentTurn === 1 ? 2 : 1);
+        else syncRoomState();
+        
         render3DBoardFromState();
         updateUIStatus();
       }
@@ -375,7 +361,7 @@ function processClick(r, c) {
 }
 
 // ==========================================
-// 6. THREE.JS RENDERING
+// 6. THREE.JS RENDERING & VISUALS
 // ==========================================
 function init3D() {
   const container = document.getElementById('canvas-container');
@@ -401,7 +387,6 @@ function init3D() {
   dirLight.castShadow = true;
   scene.add(dirLight);
 
-  // Decorative Base Octagon (lowered to prevent z-fighting with grid)
   const baseGeo = new THREE.CylinderGeometry(4.5, 4.5, 0.4, 8);
   const baseMesh = new THREE.Mesh(baseGeo, matGrass);
   baseMesh.position.y = -0.22; 
@@ -434,9 +419,6 @@ function onMouseClick(event) {
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
   
   raycaster.setFromCamera(mouse, camera);
-  
-  // Raycast strictly against board pieces. 
-  // Because we applied traverse(userData) during rendering, ANY piece of a building clicked returns correct (r, c).
   const intersects = raycaster.intersectObjects(boardGroup.children, true);
   
   if (intersects.length > 0) {
@@ -447,23 +429,20 @@ function onMouseClick(event) {
   }
 }
 
-// Generate the classical column structure for Level 2
+// --- Improved Architecture Generation ---
 function createLevel2Building() {
   const group = new THREE.Group();
   
-  // Base block for Level 2
-  const blockGeo = new THREE.BoxGeometry(0.75, 0.4, 0.75);
-  const block = new THREE.Mesh(blockGeo, matLevel2);
-  block.position.y = 0.2;
-  block.castShadow = true;
-  block.receiveShadow = true;
-  group.add(block);
+  // Floor base
+  const floorGeo = new THREE.BoxGeometry(0.75, 0.1, 0.75);
+  const floor = new THREE.Mesh(floorGeo, matLevel2);
+  floor.position.y = 0.05;
+  floor.castShadow = true; floor.receiveShadow = true;
+  group.add(floor);
   
-  // 4 Corner Columns
-  const colGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.45, 8);
-  const offsets = [
-    [-0.3, -0.3], [0.3, -0.3], [-0.3, 0.3], [0.3, 0.3]
-  ];
+  // Columns
+  const colGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.25, 8);
+  const offsets = [[-0.28, -0.28], [0.28, -0.28], [-0.28, 0.28], [0.28, 0.28]];
   offsets.forEach(pos => {
     const col = new THREE.Mesh(colGeo, matLevel2);
     col.position.set(pos[0], 0.225, pos[1]);
@@ -471,18 +450,38 @@ function createLevel2Building() {
     group.add(col);
   });
   
+  // Roof block
+  const roofGeo = new THREE.BoxGeometry(0.75, 0.1, 0.75);
+  const roof = new THREE.Mesh(roofGeo, matLevel2);
+  roof.position.y = 0.4;
+  roof.castShadow = true; roof.receiveShadow = true;
+  group.add(roof);
+  
+  return group;
+}
+
+function createWorker(playerNum) {
+  const group = new THREE.Group();
+  const wMat = playerNum === 1 ? matPlayer1 : matPlayer2;
+  
+  const bodyGeo = new THREE.CylinderGeometry(0.12, 0.18, 0.4, 16);
+  const body = new THREE.Mesh(bodyGeo, wMat);
+  body.position.y = 0.2;
+  body.castShadow = true;
+  
+  const headGeo = new THREE.SphereGeometry(0.14, 16, 16);
+  const head = new THREE.Mesh(headGeo, wMat);
+  head.position.y = 0.48;
+  head.castShadow = true;
+  
+  group.add(body);
+  group.add(head);
   return group;
 }
 
 function render3DBoardFromState() {
-  // Clear old meshes
-  while(boardGroup.children.length > 0){ 
-    const child = boardGroup.children[0];
-    boardGroup.remove(child); 
-  }
-  while(highlightGroup.children.length > 0){ 
-    highlightGroup.remove(highlightGroup.children[0]); 
-  }
+  while(boardGroup.children.length > 0) boardGroup.remove(boardGroup.children[0]); 
+  while(highlightGroup.children.length > 0) highlightGroup.remove(highlightGroup.children[0]); 
 
   for (let r = 0; r < 5; r++) {
     for (let c = 0; c < 5; c++) {
@@ -491,37 +490,32 @@ function render3DBoardFromState() {
       const z = (r - 2) * 1.1;
       let currentY = 0;
       
-      // We wrap the entire stack for this grid cell in one group
       const cellStack = new THREE.Group();
       cellStack.position.set(x, 0, z);
       
-      // Base Floor Tile (Raised slightly above grass to prevent z-fight)
-      const tileGeo = new THREE.BoxGeometry(1, 0.1, 1);
-      const tile = new THREE.Mesh(tileGeo, matTile);
+      const tile = new THREE.Mesh(new THREE.BoxGeometry(1, 0.1, 1), matTile);
       tile.position.y = 0.05;
       tile.receiveShadow = true;
       cellStack.add(tile);
       currentY = 0.1;
       
       if (cell.level >= 1) {
-        const l1Geo = new THREE.BoxGeometry(0.9, 0.5, 0.9);
-        const l1 = new THREE.Mesh(l1Geo, matLevel1);
-        l1.position.y = currentY + 0.25;
+        const l1 = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.4, 0.9), matLevel1);
+        l1.position.y = currentY + 0.2;
         l1.castShadow = true; l1.receiveShadow = true;
         cellStack.add(l1);
-        currentY += 0.5;
+        currentY += 0.4;
       }
       
       if (cell.level >= 2) {
-        const l2Group = createLevel2Building();
+        const l2Group = createLevel2Building(); // Height: 0.45
         l2Group.position.y = currentY;
         cellStack.add(l2Group);
         currentY += 0.45; 
       }
       
       if (cell.level >= 3) {
-        const l3Geo = new THREE.CylinderGeometry(0.3, 0.3, 0.3, 16);
-        const l3 = new THREE.Mesh(l3Geo, matLevel3);
+        const l3 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.3, 16), matLevel3);
         l3.position.y = currentY + 0.15;
         l3.castShadow = true; l3.receiveShadow = true;
         cellStack.add(l3);
@@ -529,75 +523,55 @@ function render3DBoardFromState() {
       }
       
       if (cell.hasDome) {
-        const domeGeo = new THREE.SphereGeometry(0.3, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2);
-        const dome = new THREE.Mesh(domeGeo, matDome);
+        const dome = new THREE.Mesh(new THREE.SphereGeometry(0.35, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), matDome);
         dome.position.y = currentY;
         dome.castShadow = true;
         cellStack.add(dome);
-        currentY += 0.3;
+        currentY += 0.35;
       }
       
       if (cell.worker > 0) {
-        const wGeo = new THREE.CylinderGeometry(0.15, 0.15, 0.6, 16);
-        const wMat = cell.worker === 1 ? matPlayer1 : matPlayer2;
-        const worker = new THREE.Mesh(wGeo, wMat);
-        worker.position.y = currentY + 0.3;
-        worker.castShadow = true;
+        const worker = createWorker(cell.worker);
+        worker.position.y = currentY;
         cellStack.add(worker);
         
-        // Turn indicator Glow ring
         if (cell.worker === currentTurn && gamePhase !== 'PLACE' && gamePhase !== 'GAME_OVER') {
-          const ringGeo = new THREE.RingGeometry(0.25, 0.35, 16);
-          const ring = new THREE.Mesh(ringGeo, matHighlightSelect);
+          const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.4, 16), matHighlightSelect);
           ring.rotation.x = -Math.PI / 2;
-          ring.position.y = currentY + 0.02; // Just above current floor
+          ring.position.y = currentY + 0.02; 
           highlightGroup.add(ring);
-          
-          // Animate ring in render loop by modifying userData
           ring.userData = { isGlow: true, baseY: ring.position.y, x: x, z: z };
         }
       }
       
-      // VITAL FIX: Recursively apply the grid coordinates to EVERY mesh in this cell's stack
-      // This guarantees the raycaster will ALWAYS return the correct (r, c) even if a column is clicked.
+      // Map all geometries in this stack to the grid coordinates
       cellStack.traverse((child) => {
-        if (child.isMesh) {
-          child.userData = { r: r, c: c };
-        }
+        if (child.isMesh) child.userData = { r: r, c: c };
       });
-      
       boardGroup.add(cellStack);
     }
   }
   
-  // Render Valid Move / Build Highlights
   if (selectedWorkerPos && isLocalTurn()) {
     let highlightCoords = [];
     let mat = null;
     
-    if (gamePhase === 'MOVE') {
-      highlightCoords = getValidMoves(selectedWorkerPos.r, selectedWorkerPos.c);
-      mat = matHighlightMove;
-    } else if (gamePhase === 'BUILD') {
-      highlightCoords = getValidBuilds(selectedWorkerPos.r, selectedWorkerPos.c);
-      mat = matHighlightBuild;
-    }
+    if (gamePhase === 'MOVE') { highlightCoords = getValidMoves(selectedWorkerPos.r, selectedWorkerPos.c); mat = matHighlightMove; } 
+    else if (gamePhase === 'BUILD') { highlightCoords = getValidBuilds(selectedWorkerPos.r, selectedWorkerPos.c); mat = matHighlightBuild; }
     
     highlightCoords.forEach(pos => {
       const hx = (pos.c - 2) * 1.1;
       const hz = (pos.r - 2) * 1.1;
       
-      // Calculate exact surface Y
       const tCell = boardState[pos.r][pos.c];
       let yHeight = 0.1;
-      if (tCell.level >= 1) yHeight += 0.5;
+      if (tCell.level >= 1) yHeight += 0.4;
       if (tCell.level >= 2) yHeight += 0.45;
       if (tCell.level >= 3) yHeight += 0.3;
       
-      const planeGeo = new THREE.PlaneGeometry(0.9, 0.9);
-      const plane = new THREE.Mesh(planeGeo, mat);
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), mat);
       plane.rotation.x = -Math.PI / 2;
-      plane.position.set(hx, yHeight + 0.03, hz); // +0.03 prevents z-fighting with the block below
+      plane.position.set(hx, yHeight + 0.03, hz);
       highlightGroup.add(plane);
     });
   }
@@ -606,8 +580,6 @@ function render3DBoardFromState() {
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
-  
-  // Animate turn glow rings
   const time = Date.now() * 0.005;
   highlightGroup.children.forEach(child => {
     if (child.userData.isGlow) {
@@ -616,7 +588,6 @@ function animate() {
       child.position.z = child.userData.z;
     }
   });
-  
   renderer.render(scene, camera);
 }
 
@@ -633,7 +604,7 @@ function updateUIStatus() {
     badge.className = 'px-2 py-1 text-xs font-bold rounded w-max mb-2 bg-gray-200 text-gray-800';
   } else {
     const roleStr = isHost ? '(P1/Blue)' : '(P2/Red)';
-    badge.innerText = `ONLINE: ROOM ${roomCodeDisplay} ${roleStr}`;
+    badge.innerText = `ONLINE: ROOM ${roomCodeDisplay} | YOU: ${localPlayerName.toUpperCase()} ${roleStr}`;
     badge.className = 'px-2 py-1 text-xs font-bold rounded w-max mb-2 bg-green-200 text-green-800';
   }
 
@@ -668,22 +639,28 @@ function generateRoomCode() {
   return result;
 }
 
-function setupOnlineRoom(isCreating) {
+// Re-written to fully support Name-based Resume logic
+async function setupOnlineRoom(isCreating) {
+  const nameInput = document.getElementById('input-player-name').value.trim();
+  const errorText = document.getElementById('online-status');
+  
+  if (!nameInput) {
+    errorText.innerText = 'Please enter a Name first.';
+    return;
+  }
+  
+  localPlayerName = nameInput;
   let roomCode = document.getElementById('input-room-code').value.trim().toUpperCase();
   
   if (isCreating) {
     roomCode = generateRoomCode();
     document.getElementById('input-room-code').value = roomCode;
-  }
-  
-  if (!roomCode || roomCode.length < 3) {
-    document.getElementById('online-status').innerText = 'Enter a valid Room Code';
+  } else if (!roomCode || roomCode.length < 3) {
+    errorText.innerText = 'Enter a valid Room Code.';
     return;
   }
 
   roomCodeDisplay = roomCode;
-  
-  // Detach any previous listeners safely
   if (currentRoomRef) currentRoomRef.off();
   
   currentRoomRef = firebaseDb.ref('rooms/' + roomCode);
@@ -693,30 +670,54 @@ function setupOnlineRoom(isCreating) {
   document.getElementById('btn-close-menu').classList.remove('hidden');
 
   if (isCreating) {
+    // 1. Host establishes room with their identity map
     localPlayerRole = 1;
     isHost = true;
-    debugLog(`Created Room: ${roomCode} as HOST`);
+    const initialPayload = { players: {} };
+    initialPayload.players[localPlayerName] = 1;
+    await currentRoomRef.set(initialPayload);
+    
+    debugLog(`Created Room: ${roomCode} | Initializing Name: ${localPlayerName}`);
     resetGameLogic();
   } else {
-    localPlayerRole = 2;
-    isHost = false;
-    debugLog(`Joined Room: ${roomCode} as GUEST`);
-    // Fallback UI until snapshot loads
+    // 2. Guest connects, checks for name to resume
+    const snapshot = await currentRoomRef.once('value');
+    const data = snapshot.val();
+    
+    if (!data) {
+      alert("Room not found!");
+      return;
+    }
+    
+    if (data.players && data.players[localPlayerName]) {
+      // Identity matched! Re-claim your exact seat
+      localPlayerRole = data.players[localPlayerName];
+      isHost = (localPlayerRole === 1);
+      debugLog(`Resuming Session | Name: ${localPlayerName} | Role: P${localPlayerRole}`);
+    } else {
+      // New Identity joining. Figure out what role is open.
+      const existingRoles = data.players ? Object.values(data.players) : [];
+      if (!existingRoles.includes(1)) localPlayerRole = 1;
+      else if (!existingRoles.includes(2)) localPlayerRole = 2;
+      else {
+         alert("Room is already full with 2 distinct names.");
+         return;
+      }
+      
+      // Lock in new identity map
+      await currentRoomRef.child('players').update({ [localPlayerName]: localPlayerRole });
+      isHost = (localPlayerRole === 1);
+      debugLog(`Joined as New Player | Name: ${localPlayerName} | Assigned Role: P${localPlayerRole}`);
+    }
     updateUIStatus();
   }
 
+  // Set up continuous listener
   currentRoomRef.on('value', snapshot => {
     const data = snapshot.val();
-    if (!data) return;
+    if (!data || !data.flatBoard) return;
 
-    // VITAL FIX: Echo Guard. Ignore updates that originated from this exact browser session.
-    // This perfectly prevents the local game from "undoing" while waiting for the server,
-    // solving the multi-click latency issue permanently.
-    if (data.lastWriter === localSessionId) {
-      debugLog('Ignored our own Firebase echo (Session ID matched).');
-      return;
-    }
-
+    if (data.lastWriter === localSessionId) return; // Perfect Echo Rejection
     debugLog('Received remote update from opponent.');
 
     if (data.gamePhase === 'GAME_OVER' && gamePhase !== 'GAME_OVER') {
@@ -732,18 +733,12 @@ function setupOnlineRoom(isCreating) {
     currentTurn = data.currentTurn;
     placementCount = data.placementCount || { 1: 0, 2: 0 };
     
-    // Auto-reset finished games if joined late
     if (gamePhase === 'GAME_OVER' && isLocalTurn()) {
-      debugLog("Joined a finished game. Resetting board...");
       resetGameLogic();
       return;
     }
     
-    if (data.selectedWorkerPos && data.selectedWorkerPos.r !== -1) {
-      selectedWorkerPos = data.selectedWorkerPos;
-    } else {
-      selectedWorkerPos = null;
-    }
+    selectedWorkerPos = (data.selectedWorkerPos && data.selectedWorkerPos.r !== -1) ? data.selectedWorkerPos : null;
     
     render3DBoardFromState();
     updateUIStatus();
@@ -770,11 +765,9 @@ document.getElementById('btn-close-menu').addEventListener('click', () => {
   document.getElementById('btn-close-menu').classList.add('hidden');
 });
 
-// Init sequence
 initBoardState();
 init3D();
 render3DBoardFromState();
-
 </script>
 </body>
 </html>
