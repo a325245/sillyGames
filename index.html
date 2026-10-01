@@ -127,9 +127,10 @@
 	  const firebaseConfig = {
 		databaseURL: "https://santorino-1a999-default-rtdb.firebaseio.com"
 	  };
+	  let firebaseDb;
 	  try {
 		firebase.initializeApp(firebaseConfig);
-		const firebaseDb = firebase.database();
+		firebaseDb = firebase.database();
 		console.log('Firebase initialized');
 	  } catch (e) {
 		console.error('Firebase init error:', e);
