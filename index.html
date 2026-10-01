@@ -102,6 +102,25 @@
     </div>
 
     <script>
+      // Quick startup probe to surface early load/runtime errors to console and debug panel
+      (function startupProbe(){
+        try {
+          console.log('Santorini script loaded');
+          window.addEventListener('error', function(ev) {
+            try {
+              console.error('Window error:', ev.error || ev.message);
+              const dbg = document.getElementById('debug-log');
+              if (dbg) {
+                const entry = document.createElement('div');
+                entry.className = 'mb-1 border-b border-gray-800 pb-1';
+                entry.innerText = `[startup error] ${ev.error && ev.error.message ? ev.error.message : ev.message}`;
+                dbg.appendChild(entry);
+              }
+            } catch (e) { console.error('Error writing startup error to debug panel', e); }
+          });
+        } catch (e) { console.error('startupProbe failure', e); }
+      })();
+
       // ==========================================
       // 1. FIREBASE CONFIGURATION & INIT
       // ==========================================
@@ -656,110 +675,142 @@ function onMouseClick(event) {
 async function setupOnlineRoom(isCreating) {
   const nameInput = document.getElementById('input-player-name').value.trim();
   const errorText = document.getElementById('online-status');
-  
-  if (!nameInput) {
-    errorText.innerText = 'Please enter a Name first.';
-    return;
-  }
-  
-  localPlayerName = nameInput;
-  let roomCode = document.getElementById('input-room-code').value.trim().toUpperCase();
-  
-  if (isCreating) {
-    roomCode = generateRoomCode();
-    document.getElementById('input-room-code').value = roomCode;
-  } else if (!roomCode || roomCode.length < 3) {
-    errorText.innerText = 'Enter a valid Room Code.';
-    return;
-  }
-
-  roomCodeDisplay = roomCode;
-  if (currentRoomRef) currentRoomRef.off();
-  
-  currentRoomRef = firebaseDb.ref('rooms/' + roomCode);
-  gameMode = 'ONLINE';
-  
-  document.getElementById('modal-start-menu').classList.add('hidden');
-  document.getElementById('btn-close-menu').classList.remove('hidden');
-
-  if (isCreating) {
-    // 1. Host establishes room with their identity map
-    localPlayerRole = 1;
-    isHost = true;
-    const initialPayload = { players: {} };
-    initialPayload.players[localPlayerName] = 1;
-    await currentRoomRef.set(initialPayload);
-    
-    debugLog(`Created Room: ${roomCode} | Initializing Name: ${localPlayerName}`);
-    resetGameLogic();
-  } else {
-    // 2. Guest connects, checks for name to resume
-    const snapshot = await currentRoomRef.once('value');
-    const data = snapshot.val();
-    
-    if (!data) {
-      alert("Room not found!");
+  try {
+    debugLog('setupOnlineRoom() called. isCreating=' + isCreating);
+    errorText.innerText = '';
+    if (!nameInput) {
+      errorText.innerText = 'Please enter a Name first.';
+      debugLog('No name entered');
       return;
     }
-    
-    if (data.players && data.players[localPlayerName]) {
-      // Identity matched! Re-claim your exact seat
-      localPlayerRole = data.players[localPlayerName];
-      isHost = (localPlayerRole === 1);
-      debugLog(`Resuming Session | Name: ${localPlayerName} | Role: P${localPlayerRole}`);
-      } else {
-      // New Identity joining. Figure out what role is open.
-      const existingRoles = data.players ? Object.values(data.players) : [];
-      if (!existingRoles.includes(1)) localPlayerRole = 1;
-      else if (!existingRoles.includes(2)) localPlayerRole = 2;
-      else {
-      alert("Room is already full with 2 distinct names.");
+
+    localPlayerName = nameInput;
+    let roomCode = document.getElementById('input-room-code').value.trim().toUpperCase();
+
+    if (isCreating) {
+      roomCode = generateRoomCode();
+      document.getElementById('input-room-code').value = roomCode;
+    } else if (!roomCode || roomCode.length < 3) {
+      errorText.innerText = 'Enter a valid Room Code.';
+      debugLog('Invalid room code provided:', roomCode);
       return;
-      }
+    }
 
-      // Lock in new identity map
-      await currentRoomRef.child('players').update({ [localPlayerName]: localPlayerRole });
-      isHost = (localPlayerRole === 1);
-      debugLog(`Joined as New Player | Name: ${localPlayerName} | Assigned Role: P${localPlayerRole}`);
-      }
-      updateUIStatus();
-      }
+    roomCodeDisplay = roomCode;
+    if (currentRoomRef) {
+      try { currentRoomRef.off(); } catch (e) { debugLog('Error turning off previous room listener', e); }
+    }
 
-      // Set up continuous listener
-      currentRoomRef.on('value', snapshot => {
-      const data = snapshot.val();
-      if (!data || !data.flatBoard) return;
+    currentRoomRef = firebaseDb.ref('rooms/' + roomCode);
+    gameMode = 'ONLINE';
 
-      if (data.lastWriter === localSessionId) return; // Perfect Echo Rejection
-      debugLog('Received remote update from opponent.');
+    document.getElementById('modal-start-menu').classList.add('hidden');
+    document.getElementById('btn-close-menu').classList.remove('hidden');
+    updateUIStatus();
 
-      if (data.gamePhase === 'GAME_OVER' && gamePhase !== 'GAME_OVER') {
-      winner = data.winner;
-      gamePhase = 'GAME_OVER';
-      confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
-      } else {
-      gamePhase = data.gamePhase;
-      winner = data.winner || 0;
-      }
+    // Show connecting status
+    errorText.innerText = isCreating ? 'Creating room...' : 'Joining room...';
 
-      boardState = deserializeBoard(data.flatBoard);
-      currentTurn = data.currentTurn;
-      placementCount = data.placementCount || { 1: 0, 2: 0 };
+    if (isCreating) {
+      // 1. Host establishes room with their identity map
+      localPlayerRole = 1;
+      isHost = true;
+      const initialPayload = { players: {} };
+      initialPayload.players[localPlayerName] = 1;
 
-      if (gamePhase === 'GAME_OVER' && isLocalTurn()) {
+      debugLog('Writing initial payload to Firebase for room', roomCode, initialPayload);
+      await currentRoomRef.set(initialPayload);
+
+      debugLog(`Created Room: ${roomCode} | Initializing Name: ${localPlayerName}`);
+      errorText.innerText = 'Room created. Waiting for opponent...';
       resetGameLogic();
-      return;
+    } else {
+      // 2. Guest connects, checks for name to resume
+      debugLog('Attempting to read room data for', roomCode);
+      const snapshot = await currentRoomRef.once('value');
+      const data = snapshot.val();
+      debugLog('Room snapshot:', data);
+
+      if (!data) {
+        alert('Room not found!');
+        errorText.innerText = 'Room not found.';
+        return;
       }
 
-      selectedWorkerPos = (data.selectedWorkerPos && data.selectedWorkerPos.r !== -1) ? data.selectedWorkerPos : null;
+      if (data.players && data.players[localPlayerName]) {
+        // Identity matched! Re-claim your exact seat
+        localPlayerRole = data.players[localPlayerName];
+        isHost = (localPlayerRole === 1);
+        debugLog(`Resuming Session | Name: ${localPlayerName} | Role: P${localPlayerRole}`);
+      } else {
+        // New Identity joining. Figure out what role is open.
+        const existingRoles = data.players ? Object.values(data.players) : [];
+        if (!existingRoles.includes(1)) localPlayerRole = 1;
+        else if (!existingRoles.includes(2)) localPlayerRole = 2;
+        else {
+          alert('Room is already full with 2 distinct names.');
+          errorText.innerText = 'Room full.';
+          return;
+        }
 
-      render3DBoardFromState();
+        // Lock in new identity map
+        debugLog('Assigning new role to name and updating Firebase', localPlayerName, localPlayerRole);
+        await currentRoomRef.child('players').update({ [localPlayerName]: localPlayerRole });
+        isHost = (localPlayerRole === 1);
+        debugLog(`Joined as New Player | Name: ${localPlayerName} | Assigned Role: P${localPlayerRole}`);
+      }
       updateUIStatus();
-      });
-      }
+    }
 
-      // Button Listeners
-      document.getElementById('btn-local-play').addEventListener('click', () => {
+    // Set up continuous listener
+    debugLog('Registering realtime listener for room', roomCode);
+    currentRoomRef.on('value', snapshot => {
+      try {
+        const data = snapshot.val();
+        if (!data) { debugLog('Realtime listener: data empty'); return; }
+        if (!data.flatBoard) { debugLog('Realtime listener: flatBoard missing; data=', data); return; }
+
+        if (data.lastWriter === localSessionId) { debugLog('Ignoring own write (echo)'); return; } // Perfect Echo Rejection
+        debugLog('Received remote update from opponent.');
+
+        if (data.gamePhase === 'GAME_OVER' && gamePhase !== 'GAME_OVER') {
+          winner = data.winner;
+          gamePhase = 'GAME_OVER';
+          confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+        } else {
+          gamePhase = data.gamePhase;
+          winner = data.winner || 0;
+        }
+
+        boardState = deserializeBoard(data.flatBoard);
+        currentTurn = data.currentTurn;
+        placementCount = data.placementCount || { 1: 0, 2: 0 };
+
+        if (gamePhase === 'GAME_OVER' && isLocalTurn()) {
+          resetGameLogic();
+          return;
+        }
+
+        selectedWorkerPos = (data.selectedWorkerPos && data.selectedWorkerPos.r !== -1) ? data.selectedWorkerPos : null;
+
+        render3DBoardFromState();
+        updateUIStatus();
+      } catch (e) {
+        debugLog('Error in realtime listener callback', e);
+      }
+    });
+
+  } catch (err) {
+    console.error('setupOnlineRoom error', err);
+    debugLog('setupOnlineRoom error: ' + (err && err.message ? err.message : err));
+    document.getElementById('online-status').innerText = 'Error: ' + (err && err.message ? err.message : 'unknown');
+    // show start menu again so user can retry
+    try { document.getElementById('modal-start-menu').classList.remove('hidden'); } catch(e){}
+  }
+}
+
+// Button Listeners
+document.getElementById('btn-local-play').addEventListener('click', () => {
       if (currentRoomRef) currentRoomRef.off();
       currentRoomRef = null;
       gameMode = 'LOCAL';
