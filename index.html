@@ -705,6 +705,7 @@
 
 		  document.getElementById('modal-start-menu').classList.add('hidden');
 		  document.getElementById('btn-close-menu').classList.remove('hidden');
+		  document.getElementById('btn-settings').classList.remove('hidden');
 		  updateUIStatus();
 
 		  errorText.innerText = isCreating ? 'Creating room...' : 'Joining room...';
@@ -760,11 +761,11 @@
 				return;
 			  }
 
-			  debugLog('Assigning role P' + localPlayerRole + ' to new player ' + localPlayerName);
-			  await currentRoomRef.child('players').update({ [localPlayerName]: localPlayerRole });
-			  isHost = (localPlayerRole === 1);
-			  debugLog(`Joined as P${localPlayerRole} | Name: ${localPlayerName}`);
-			}
+				  debugLog('Assigning role P' + localPlayerRole + ' to new player ' + localPlayerName);
+				  await currentRoomRef.child('players').update({ [localPlayerName]: localPlayerRole });
+				  isHost = (localPlayerRole === 1);
+				  debugLog(`Joined as P${localPlayerRole} | Name: ${localPlayerName}`);
+				}
 
 			if (data.flatBoard && data.flatBoard.length > 0) {
 			  boardState = deserializeBoard(data.flatBoard);
@@ -827,6 +828,13 @@
 
 	  // Button Listeners
 	  document.getElementById('btn-local-play').addEventListener('click', () => {
+		const nameInput = document.getElementById('input-player-name').value.trim();
+		if (!nameInput) {
+		  document.getElementById('online-status').innerText = 'Please enter your name first.';
+		  return;
+		}
+		localPlayerName = nameInput;
+
 		if (currentRoomRef) currentRoomRef.off();
 		currentRoomRef = null;
 		gameMode = 'LOCAL';
@@ -836,8 +844,25 @@
 		resetGameLogic();
 	  });
 
-	  document.getElementById('btn-create-room').addEventListener('click', () => setupOnlineRoom(true));
-	  document.getElementById('btn-join-room').addEventListener('click', () => setupOnlineRoom(false));
+	  document.getElementById('btn-create-room').addEventListener('click', () => {
+		const nameInput = document.getElementById('input-player-name').value.trim();
+		if (!nameInput) {
+		  document.getElementById('online-status').innerText = 'Please enter your name first.';
+		  return;
+		}
+		localPlayerName = nameInput;
+		setupOnlineRoom(true);
+	  });
+
+	  document.getElementById('btn-join-room').addEventListener('click', () => {
+		const nameInput = document.getElementById('input-player-name').value.trim();
+		if (!nameInput) {
+		  document.getElementById('online-status').innerText = 'Please enter your name first.';
+		  return;
+		}
+		localPlayerName = nameInput;
+		setupOnlineRoom(false);
+	  });
 
 	  document.getElementById('btn-close-menu').addEventListener('click', () => {
 		if (currentRoomRef) currentRoomRef.off();
@@ -847,6 +872,24 @@
 
 	  // Initialize the game
 	  debugLog('Initializing game board and 3D scene');
+
+	  // Check for room code in URL query parameters
+	  const urlParams = new URLSearchParams(window.location.search);
+	  const roomFromUrl = urlParams.get('room');
+	  const opponentFromUrl = urlParams.get('opponent');
+	  if (roomFromUrl) {
+		debugLog('Room code detected in URL: ' + roomFromUrl);
+		document.getElementById('input-room-code').value = roomFromUrl;
+	  }
+	  if (opponentFromUrl) {
+		debugLog('Opponent name detected in URL: ' + opponentFromUrl);
+		// Add helpful text showing who invited them
+		const statusEl = document.getElementById('online-status');
+		statusEl.innerText = 'Joining ' + decodeURIComponent(opponentFromUrl) + '\'s game...';
+		statusEl.classList.remove('text-red-500');
+		statusEl.classList.add('text-blue-600');
+	  }
+
 	  initBoardState();
 	  init3D();
 	  render3DBoardFromState();
