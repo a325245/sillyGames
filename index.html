@@ -278,6 +278,11 @@
 	  let scene, camera, renderer, controls, raycaster, mouse;
 	  let boardGroup, highlightGroup;
 
+	  // Mobile touch tracking
+	  let lastTouchPos = null;
+	  let touchStartTime = 0;
+	  const isMobileDevice = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
 	  const matGrass = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
 	  const matTile = new THREE.MeshLambertMaterial({ color: 0xc4c4c4 });
 	  const matLevel1 = new THREE.MeshLambertMaterial({ color: 0xffffff });
@@ -560,6 +565,8 @@
 
 		window.addEventListener('resize', onWindowResize);
 		container.addEventListener('click', onMouseClick);
+		container.addEventListener('touchstart', onTouchStart);
+		container.addEventListener('touchend', onTouchEnd);
 
 		animate();
 	  }
@@ -580,7 +587,65 @@
 		if (intersects.length > 0) {
 		  const obj = intersects[0].object;
 		  if (obj.userData && obj.userData.r !== undefined) {
-			processClick(obj.userData.r, obj.userData.c);
+			const clickPos = { r: obj.userData.r, c: obj.userData.c };
+
+			// On mobile, require two-stage confirmation to prevent accidental taps
+			if (isMobileDevice()) {
+			  if (lastTouchPos && lastTouchPos.r === clickPos.r && lastTouchPos.c === clickPos.c) {
+				// Second tap on same tile - confirm action
+				debugLog('Mobile: Two-tap confirmed on tile (' + clickPos.r + ', ' + clickPos.c + ')');
+				processClick(clickPos.r, clickPos.c);
+				lastTouchPos = null;
+			  } else {
+				// First tap - highlight selection
+				lastTouchPos = clickPos;
+				debugLog('Mobile: First tap on tile (' + clickPos.r + ', ' + clickPos.c + ') - tap again to confirm');
+			  }
+			} else {
+			  // Desktop - single click
+			  processClick(clickPos.r, clickPos.c);
+			}
+		  }
+		}
+	  }
+
+	  function onTouchStart(event) {
+		touchStartTime = Date.now();
+	  }
+
+	  function onTouchEnd(event) {
+		// Prevent accidental long-touch drags from triggering actions
+		const touchDuration = Date.now() - touchStartTime;
+		if (touchDuration > 500) {
+		  debugLog('Touch held for ' + touchDuration + 'ms - ignoring');
+		  return;
+		}
+
+		// Use the last touch position to raycasting
+		if (event.changedTouches && event.changedTouches.length > 0) {
+		  const touch = event.changedTouches[0];
+		  mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+		  mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+
+		  raycaster.setFromCamera(mouse, camera);
+		  const intersects = raycaster.intersectObjects(boardGroup.children, true);
+
+		  if (intersects.length > 0) {
+			const obj = intersects[0].object;
+			if (obj.userData && obj.userData.r !== undefined) {
+			  const clickPos = { r: obj.userData.r, c: obj.userData.c };
+
+			  if (lastTouchPos && lastTouchPos.r === clickPos.r && lastTouchPos.c === clickPos.c) {
+				// Second tap on same tile - confirm action
+				debugLog('Mobile: Two-tap confirmed on tile (' + clickPos.r + ', ' + clickPos.c + ')');
+				processClick(clickPos.r, clickPos.c);
+				lastTouchPos = null;
+			  } else {
+				// First tap - highlight selection
+				lastTouchPos = clickPos;
+				debugLog('Mobile: First tap on tile (' + clickPos.r + ', ' + clickPos.c + ') - tap again to confirm');
+			  }
+			}
 		  }
 		}
 	  }
