@@ -155,6 +155,42 @@
 	  let selectedWorkerPos = null;
 	  let winner = 0;
 
+	  // ==========================================
+	  // 2.5 COOKIE MANAGEMENT
+	  // ==========================================
+	  function setCookie(name, value, days = 30) {
+		const date = new Date();
+		date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+		const expires = 'expires=' + date.toUTCString();
+		document.cookie = name + '=' + encodeURIComponent(value) + ';' + expires + ';path=/';
+		debugLog('Cookie set: ' + name + ' = ' + value);
+	  }
+
+	  function getCookie(name) {
+		const nameEQ = name + '=';
+		const cookies = document.cookie.split(';');
+		for (let i = 0; i < cookies.length; i++) {
+		  let c = cookies[i].trim();
+		  if (c.indexOf(nameEQ) === 0) {
+			return decodeURIComponent(c.substring(nameEQ.length));
+		  }
+		}
+		return null;
+	  }
+
+	  function loadFromCookies() {
+		const savedName = getCookie('santorini_playerName');
+		const savedRoom = getCookie('santorini_roomCode');
+		if (savedName) {
+		  document.getElementById('input-player-name').value = savedName;
+		  debugLog('Loaded player name from cookie: ' + savedName);
+		}
+		if (savedRoom) {
+		  document.getElementById('input-room-code').value = savedRoom;
+		  debugLog('Loaded room code from cookie: ' + savedRoom);
+		}
+	  }
+
 	  let scene, camera, renderer, controls, raycaster, mouse;
 	  let boardGroup, highlightGroup;
 
@@ -705,7 +741,6 @@
 
 		  document.getElementById('modal-start-menu').classList.add('hidden');
 		  document.getElementById('btn-close-menu').classList.remove('hidden');
-		  document.getElementById('btn-settings').classList.remove('hidden');
 		  updateUIStatus();
 
 		  errorText.innerText = isCreating ? 'Creating room...' : 'Joining room...';
@@ -834,6 +869,7 @@
 		  return;
 		}
 		localPlayerName = nameInput;
+		setCookie('santorini_playerName', nameInput);
 
 		if (currentRoomRef) currentRoomRef.off();
 		currentRoomRef = null;
@@ -851,16 +887,20 @@
 		  return;
 		}
 		localPlayerName = nameInput;
+		setCookie('santorini_playerName', nameInput);
 		setupOnlineRoom(true);
 	  });
 
 	  document.getElementById('btn-join-room').addEventListener('click', () => {
 		const nameInput = document.getElementById('input-player-name').value.trim();
+		const roomCode = document.getElementById('input-room-code').value.trim().toUpperCase();
 		if (!nameInput) {
 		  document.getElementById('online-status').innerText = 'Please enter your name first.';
 		  return;
 		}
 		localPlayerName = nameInput;
+		setCookie('santorini_playerName', nameInput);
+		if (roomCode) setCookie('santorini_roomCode', roomCode);
 		setupOnlineRoom(false);
 	  });
 
@@ -872,6 +912,9 @@
 
 	  // Initialize the game
 	  debugLog('Initializing game board and 3D scene');
+
+	  // Load saved player name and room code from cookies
+	  loadFromCookies();
 
 	  // Check for room code in URL query parameters
 	  const urlParams = new URLSearchParams(window.location.search);
