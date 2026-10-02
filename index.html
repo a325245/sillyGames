@@ -38,6 +38,61 @@
 			#btn-debug-toggle-gear { position: fixed !important; }
 			#btn-debug-toggle-gear:hover { transform: rotate(15deg); transition: transform 0.2s; }
 
+			#btn-night-mode-toggle { position: fixed !important; top: 16px; right: 16px; z-index: 41; }
+			#btn-night-mode-toggle:hover { transform: scale(1.1); transition: transform 0.2s; }
+
+			/* Night Mode Theme */
+			body.night-mode { background-color: #0a0e27; }
+
+			body.night-mode #ui-layer .bg-white {
+			  background-color: #1a1f3a !important;
+			  color: #b0bfff !important;
+			}
+
+			body.night-mode #status-badge {
+			  background-color: #2d3354 !important;
+			  color: #7f8aff !important;
+			}
+
+			body.night-mode #game-info {
+			  color: #8fa3ff !important;
+			}
+
+			body.night-mode #instruction-text {
+			  color: #6b7a99 !important;
+			}
+
+			body.night-mode #modal-start-menu .bg-white {
+			  background-color: #1a1f3a !important;
+			  color: #b0bfff !important;
+			}
+
+			body.night-mode #modal-start-menu h2 {
+			  color: #7f8aff !important;
+			}
+
+			body.night-mode input[type="text"] {
+			  background-color: #252c4a !important;
+			  color: #b0bfff !important;
+			  border-color: #3a4366 !important;
+			}
+
+			body.night-mode input[type="text"]::placeholder {
+			  color: #5a6b8a !important;
+			}
+
+			body.night-mode button {
+			  transition: all 0.2s;
+			}
+
+			body.night-mode #btn-close-menu {
+			  background-color: #7a3a3a !important;
+			}
+
+			body.night-mode #btn-close-menu:hover {
+			  background-color: #8a4a4a !important;
+			}
+
 			/* Mobile Optimizations */
 			@media (max-width: 768px) {
 			  #ui-layer { padding: 8px; }
@@ -175,6 +230,11 @@
 	  </div>
 	</div>
 
+	<!-- Night Mode Toggle Button (Moon Icon) -->
+	<button id="btn-night-mode-toggle" class="bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full shadow-lg text-lg" title="Toggle Night Mode">
+	  🌙
+	</button>
+
 	<!-- Debug Toggle Button (Gear Icon) -->
 	<button id="btn-debug-toggle-gear" class="fixed bottom-4 right-4 bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full shadow-lg text-lg z-40" title="Toggle Debug Panel">
 	  ⚙️
@@ -271,6 +331,7 @@
 	  function loadFromCookies() {
 		const savedName = getCookie('santorini_playerName');
 		const savedRoom = getCookie('santorini_roomCode');
+		const savedNightMode = getCookie('santorini_nightMode');
 		if (savedName) {
 		  document.getElementById('input-player-name').value = savedName;
 		  debugLog('Loaded player name from cookie: ' + savedName);
@@ -279,10 +340,28 @@
 		  document.getElementById('input-room-code').value = savedRoom;
 		  debugLog('Loaded room code from cookie: ' + savedRoom);
 		}
+		if (savedNightMode === 'true') {
+		  enableNightMode();
+		}
 	  }
 
 	  // ==========================================
-	  // 2.6 NOTIFICATION & ALERTS
+	  // 2.6 NIGHT MODE
+	  // ==========================================
+	  function toggleNightMode() {
+		const isNightMode = document.body.classList.toggle('night-mode');
+		setCookie('santorini_nightMode', isNightMode.toString());
+		debugLog('Night mode ' + (isNightMode ? 'enabled' : 'disabled'));
+	  }
+
+	  function enableNightMode() {
+		document.body.classList.add('night-mode');
+		setCookie('santorini_nightMode', 'true');
+		debugLog('Night mode enabled');
+	  }
+
+	  // ==========================================
+	  // 2.7 NOTIFICATION & ALERTS
 	  // ==========================================
 	  function playNotificationSound() {
 		try {
@@ -349,6 +428,9 @@
 	  let touchStartTime = 0;
 	  const isMobileDevice = () => /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
+	  // Worker animation tracking
+	  let workerAnimations = new Map(); // tracks {workerId: {baseY, amplitude, speed, phase, mesh}}
+
 	  const matGrass = new THREE.MeshLambertMaterial({ color: 0x4CAF50 });
 	  const matTile = new THREE.MeshLambertMaterial({ color: 0xc4c4c4 });
 	  const matLevel1 = new THREE.MeshLambertMaterial({ color: 0xffffff });
@@ -389,6 +471,11 @@
 		// Close the debug panel when collapse is clicked
 		panel.classList.add('hidden');
 		debugLog('Debug panel hidden');
+	  });
+
+	  document.getElementById('btn-night-mode-toggle').addEventListener('click', (e) => {
+		e.stopPropagation();
+		toggleNightMode();
 	  });
 
 	  document.getElementById('btn-copy-debug').addEventListener('click', (e) => {
@@ -776,6 +863,7 @@
 	  function render3DBoardFromState() {
 		while(boardGroup.children.length > 0) boardGroup.remove(boardGroup.children[0]);
 		while(highlightGroup.children.length > 0) highlightGroup.remove(highlightGroup.children[0]);
+		workerAnimations.clear(); // Clear old animations
 
 		for (let r = 0; r < 5; r++) {
 		  for (let c = 0; c < 5; c++) {
@@ -829,6 +917,16 @@
 			  worker.position.y = currentY;
 			  cellStack.add(worker);
 
+			  // Track worker for animation
+			  const workerId = r + '_' + c;
+			  workerAnimations.set(workerId, {
+				baseY: currentY,
+				amplitude: 0.05,
+				speed: 1.5 + Math.random() * 0.5,
+				phase: Math.random() * Math.PI * 2,
+				mesh: worker
+			  });
+
 			  if (cell.worker === currentTurn && gamePhase !== 'PLACE' && gamePhase !== 'GAME_OVER') {
 				const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.4, 16), matHighlightSelect);
 				ring.rotation.x = -Math.PI / 2;
@@ -874,6 +972,8 @@
 		requestAnimationFrame(animate);
 		controls.update();
 		const time = Date.now() * 0.005;
+
+		// Apply highlight glow animation
 		highlightGroup.children.forEach(child => {
 		  if (child.userData.isGlow) {
 			child.position.y = child.userData.baseY + Math.sin(time) * 0.05;
@@ -881,6 +981,15 @@
 			child.position.z = child.userData.z;
 		  }
 		});
+
+		// Apply worker bobbing animation
+		workerAnimations.forEach(anim => {
+		  if (anim.mesh) {
+			const bobOffset = Math.sin(time * anim.speed + anim.phase) * anim.amplitude;
+			anim.mesh.position.y = anim.baseY + bobOffset;
+		  }
+		});
+
 		renderer.render(scene, camera);
 	  }
 
