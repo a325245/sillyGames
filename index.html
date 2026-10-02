@@ -32,8 +32,11 @@
 			box-shadow: 0 4px 6px rgba(0,0,0,0.3); pointer-events: auto; z-index: 50;
 			transition: max-height 0.2s ease-in-out; overflow: hidden;
 			}
-			#debug-panel.collapsed { max-height: 40px; }
+			#debug-panel.hidden { display: none; }
 			#debug-log { flex: 1; overflow-y: auto; padding: 8px; word-wrap: break-word; }
+
+			#btn-debug-toggle-gear { position: fixed !important; }
+			#btn-debug-toggle-gear:hover { transform: rotate(15deg); transition: transform 0.2s; }
 
 			/* Mobile Optimizations */
 			@media (max-width: 768px) {
@@ -172,12 +175,17 @@
 	  </div>
 	</div>
 
+	<!-- Debug Toggle Button (Gear Icon) -->
+	<button id="btn-debug-toggle-gear" class="fixed bottom-4 right-4 bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full shadow-lg text-lg z-40" title="Toggle Debug Panel">
+	  ⚙️
+	</button>
+
 	<!-- Debug Panel -->
-	<div id="debug-panel" class="collapsed">
+	<div id="debug-panel" class="hidden">
 	  <div class="flex justify-between items-center bg-gray-900 p-2 border-b border-gray-700 cursor-pointer select-none">
 		<div class="flex space-x-1">
 		  <button id="btn-copy-debug" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded">Copy</button>
-		  <button id="btn-toggle-debug" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded">Expand</button>
+		  <button id="btn-toggle-debug" class="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded">Collapse</button>
 		</div>
 	  </div>
 	  <div id="debug-log"></div>
@@ -273,6 +281,66 @@
 		}
 	  }
 
+	  // ==========================================
+	  // 2.6 NOTIFICATION & ALERTS
+	  // ==========================================
+	  function playNotificationSound() {
+		try {
+		  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+		  const now = audioContext.currentTime;
+
+		  // Create a simple beep notification
+		  const osc = audioContext.createOscillator();
+		  const gain = audioContext.createGain();
+
+		  osc.connect(gain);
+		  gain.connect(audioContext.destination);
+
+		  osc.frequency.value = 800; // frequency in Hz
+		  osc.type = 'sine';
+
+		  gain.gain.setValueAtTime(0.3, now);
+		  gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+		  osc.start(now);
+		  osc.stop(now + 0.3);
+
+		  debugLog('Notification sound played');
+		} catch (e) {
+		  debugLog('Could not play sound: ' + e);
+		}
+	  }
+
+	  function flashWindow() {
+		try {
+		  // Flash the page title
+		  const originalTitle = document.title;
+		  let flashing = true;
+		  let flashCount = 0;
+		  const maxFlashes = 6;
+
+		  const flashInterval = setInterval(() => {
+			if (flashCount >= maxFlashes) {
+			  clearInterval(flashInterval);
+			  document.title = originalTitle;
+			  return;
+			}
+			document.title = flashCount % 2 === 0 ? '🎮 YOUR TURN!' : originalTitle;
+			flashCount++;
+		  }, 300);
+
+		  debugLog('Window flashing started');
+		} catch (e) {
+		  debugLog('Could not flash window: ' + e);
+		}
+	  }
+
+	  function notifyOpponentMove() {
+		debugLog('🔔 Opponent made a move!');
+		playNotificationSound();
+		flashWindow();
+	  }
+
 	  let scene, camera, renderer, controls, raycaster, mouse;
 	  let boardGroup, highlightGroup;
 
@@ -308,11 +376,19 @@
 		console.log(`[${time}]`, ...args);
 	  }
 
+	  document.getElementById('btn-debug-toggle-gear').addEventListener('click', (e) => {
+		e.stopPropagation();
+		const panel = document.getElementById('debug-panel');
+		panel.classList.toggle('hidden');
+		debugLog('Debug panel ' + (panel.classList.contains('hidden') ? 'hidden' : 'shown'));
+	  });
+
 	  document.getElementById('btn-toggle-debug').addEventListener('click', (e) => {
 		e.stopPropagation();
 		const panel = document.getElementById('debug-panel');
-		panel.classList.toggle('collapsed');
-		e.target.innerText = panel.classList.contains('collapsed') ? 'Expand' : 'Collapse';
+		// Close the debug panel when collapse is clicked
+		panel.classList.add('hidden');
+		debugLog('Debug panel hidden');
 	  });
 
 	  document.getElementById('btn-copy-debug').addEventListener('click', (e) => {
@@ -974,6 +1050,9 @@
 			  if (data.lastWriter === localSessionId) { debugLog('Listener: ignoring own write'); return; }
 
 			  debugLog('Received update from opponent');
+
+			  // Notify player of opponent's move
+			  notifyOpponentMove();
 
 			  if (data.gamePhase === 'GAME_OVER' && gamePhase !== 'GAME_OVER') {
 				winner = data.winner;
