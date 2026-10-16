@@ -93,7 +93,153 @@
 			  background-color: #8a4a4a !important;
 			}
 
-			/* Mobile Optimizations */
+			/* Chat Panel Styling */
+			#chat-panel {
+			  display: none !important;
+			  flex-direction: column;
+			  background-color: #ffffff;
+			  border: 1px solid #d1d5db;
+			  max-width: 350px;
+			}
+
+			#chat-panel.hidden {
+			  display: none !important;
+			}
+
+			#chat-panel:not(.hidden) {
+			  display: flex !important;
+			}
+
+			#chat-messages {
+			  border-top: 1px solid #e5e7eb;
+			  border-bottom: 1px solid #e5e7eb;
+			}
+
+			.chat-message {
+			  margin-bottom: 8px;
+			  padding: 6px 8px;
+			  border-radius: 4px;
+			  font-size: 13px;
+			  line-height: 1.3;
+			}
+
+			.chat-message.own {
+			  background-color: #dbeafe;
+			  text-align: right;
+			  color: #1e40af;
+			}
+
+			.chat-message.other {
+			  background-color: #f3f4f6;
+			  text-align: left;
+			  color: #374151;
+			}
+
+			.chat-message.system {
+			  background-color: #e5e7eb;
+			  text-align: center;
+			  color: #6b7280;
+			  font-size: 12px;
+			  font-style: italic;
+			  padding: 4px 8px;
+			  margin: 8px 0;
+			}
+
+			.chat-message-sender {
+			  font-weight: bold;
+			  font-size: 12px;
+			  opacity: 0.7;
+			}
+
+			.chat-message-text {
+			  margin-top: 2px;
+			  word-wrap: break-word;
+			  overflow-wrap: break-word;
+			}
+
+			#chat-input {
+			  resize: none;
+			  font-size: 13px;
+			}
+
+			/* Night Mode - Chat Panel */
+			body.night-mode #chat-panel {
+			  background-color: #1a1f3a !important;
+			  border-color: #3a4366 !important;
+			}
+
+			body.night-mode #chat-panel .bg-blue-600 {
+			  background-color: #2d5a8c !important;
+			}
+
+			body.night-mode #chat-messages {
+			  background-color: #0f1419 !important;
+			  border-color: #3a4366 !important;
+			}
+
+			body.night-mode .chat-message.own {
+			  background-color: #1e3a5f !important;
+			  color: #7fb3ff !important;
+			}
+
+			body.night-mode .chat-message.other {
+			  background-color: #2a2f42 !important;
+			  color: #b0bfff !important;
+			}
+
+			body.night-mode .chat-message.system {
+			  background-color: #3a3f54 !important;
+			  color: #8a9aaa !important;
+			}
+
+			body.night-mode #chat-input {
+			  background-color: #252c4a !important;
+			  color: #b0bfff !important;
+			  border-color: #3a4366 !important;
+			}
+
+			body.night-mode #btn-send-chat {
+			  background-color: #2d5a8c !important;
+			}
+
+			body.night-mode #btn-send-chat:hover {
+			  background-color: #3a6fa3 !important;
+			}
+
+			body.night-mode #btn-close-chat {
+			  color: #b0bfff !important;
+			}
+
+			/* Mobile Chat Panel Responsiveness */
+			@media (max-width: 640px) {
+			  #chat-panel {
+				width: calc(100vw - 16px) !important;
+				max-width: 100% !important;
+				height: 60vh !important;
+				right: 8px !important;
+				bottom: 60px !important;
+			  }
+
+			  .chat-message {
+				font-size: 12px;
+			  }
+
+			  #chat-input {
+				font-size: 14px;
+			  }
+			}
+
+			/* Extra small phones */
+			@media (max-width: 380px) {
+			  #chat-panel {
+				width: calc(100vw - 8px) !important;
+				height: 50vh !important;
+				right: 4px !important;
+			  }
+			}
+
+
+
 			@media (max-width: 768px) {
 			  #ui-layer { padding: 8px; }
 			  #canvas-container { width: 100vw; height: 100vh; }
@@ -235,6 +381,26 @@
 	  🌙
 	</button>
 
+	<!-- Chat Toggle Button (Chat Bubble Icon) -->
+	<button id="btn-chat-toggle" class="fixed bottom-20 right-4 bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full shadow-lg text-lg z-40" title="Toggle Chat">
+	  💬
+	</button>
+
+	<!-- Chat Panel -->
+	<div id="chat-panel" class="fixed bottom-20 right-4 w-72 h-96 bg-white rounded-lg shadow-2xl z-39 hidden flex flex-col">
+	  <div class="flex justify-between items-center bg-blue-600 text-white p-3 border-b">
+		<span class="font-bold text-sm">Chat</span>
+		<button id="btn-close-chat" class="text-white hover:bg-blue-700 p-1 rounded text-lg" title="Close Chat">✕</button>
+	  </div>
+	  <div id="chat-messages" class="flex-1 overflow-y-auto p-3 bg-gray-50">
+		<!-- Messages will be inserted here -->
+	  </div>
+	  <div class="border-t p-2 flex gap-2">
+		<input type="text" id="chat-input" placeholder="Type message..." maxlength="250" class="flex-1 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:border-blue-500">
+		<button id="btn-send-chat" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm font-bold">Send</button>
+	  </div>
+	</div>
+
 	<!-- Debug Toggle Button (Gear Icon) -->
 	<button id="btn-debug-toggle-gear" class="fixed bottom-4 right-4 bg-gray-700 hover:bg-gray-600 text-white p-2 rounded-full shadow-lg text-lg z-40" title="Toggle Debug Panel">
 	  ⚙️
@@ -328,6 +494,26 @@
 		return null;
 	  }
 
+	  function getUnseenChatCount(roomCode) {
+		const key = 'santorini_chatUnseen_' + roomCode;
+		const count = getCookie(key);
+		return count ? parseInt(count, 10) : 0;
+	  }
+
+	  function setUnseenChatCount(roomCode, count) {
+		const key = 'santorini_chatUnseen_' + roomCode;
+		setCookie(key, count.toString(), 30);
+	  }
+
+	  function incrementUnseenChatCount(roomCode) {
+		const current = getUnseenChatCount(roomCode);
+		setUnseenChatCount(roomCode, current + 1);
+	  }
+
+	  function clearUnseenChatCount(roomCode) {
+		setUnseenChatCount(roomCode, 0);
+	  }
+
 	  function loadFromCookies() {
 		const savedName = getCookie('santorini_playerName');
 		const savedRoom = getCookie('santorini_roomCode');
@@ -345,6 +531,27 @@
 		}
 	  }
 
+	  function enableChatForOnline() {
+		const chatButton = document.getElementById('btn-chat-toggle');
+		const chatPanel = document.getElementById('chat-panel');
+		if (chatButton) chatButton.style.display = 'block';
+		// Keep chat panel hidden until user opens it
+		if (chatPanel) chatPanel.classList.add('hidden');
+		chatMessages = []; // Clear old messages
+		const messagesContainer = document.getElementById('chat-messages');
+		if (messagesContainer) messagesContainer.innerHTML = '';
+		debugLog('Chat enabled for online mode');
+	  }
+
+	  function disableChatForLocal() {
+		const chatButton = document.getElementById('btn-chat-toggle');
+		const chatPanel = document.getElementById('chat-panel');
+		if (chatButton) chatButton.style.display = 'none';
+		if (chatPanel) chatPanel.classList.add('hidden');
+		chatMessages = [];
+		debugLog('Chat disabled for local mode');
+	  }
+
 	  // ==========================================
 	  // 2.6 NIGHT MODE
 	  // ==========================================
@@ -358,6 +565,89 @@
 		document.body.classList.add('night-mode');
 		setCookie('santorini_nightMode', 'true');
 		debugLog('Night mode enabled');
+	  }
+
+	  // ==========================================
+	  // 2.6.5 CHAT FUNCTIONS
+	  // ==========================================
+	  let chatMessages = []; // array to store current session messages
+	  let unseenChatCount = 0; // track unseen messages in current session
+
+	  function toggleChat() {
+		const panel = document.getElementById('chat-panel');
+		panel.classList.toggle('hidden');
+		if (!panel.classList.contains('hidden')) {
+		  // Focus input when chat opens
+		  document.getElementById('chat-input').focus();
+		  // Mark all messages as seen when chat opens
+		  if (roomCodeDisplay) {
+			clearUnseenChatCount(roomCodeDisplay);
+			unseenChatCount = 0;
+		  }
+		}
+	  }
+
+	  function formatTime(timestamp) {
+		const date = new Date(timestamp);
+		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+	  }
+
+	  function displayChatMessage(sender, text, timestamp, isOwn, isSystem = false) {
+		const messagesContainer = document.getElementById('chat-messages');
+		const msgEl = document.createElement('div');
+
+		if (isSystem) {
+		  msgEl.className = 'chat-message system';
+		  msgEl.innerText = text;
+		} else {
+		  msgEl.className = 'chat-message ' + (isOwn ? 'own' : 'other');
+		  const senderEl = document.createElement('div');
+		  senderEl.className = 'chat-message-sender';
+		  senderEl.innerText = sender;
+
+		  const textEl = document.createElement('div');
+		  textEl.className = 'chat-message-text';
+		  textEl.innerText = text;
+
+		  msgEl.appendChild(senderEl);
+		  msgEl.appendChild(textEl);
+		}
+
+		messagesContainer.appendChild(msgEl);
+
+		// Auto-scroll to bottom
+		messagesContainer.scrollTop = messagesContainer.scrollHeight;
+	  }
+
+	  function sendChatMessage() {
+		if (gameMode !== 'ONLINE') {
+		  debugLog('Chat only available in online mode');
+		  return;
+		}
+
+		const input = document.getElementById('chat-input');
+		const text = input.value.trim();
+
+		if (!text) return;
+
+		// Send to Firebase
+		if (currentRoomRef) {
+		  const chatRef = currentRoomRef.child('chat');
+		  chatRef.push({
+			sender: localPlayerName,
+			text: text,
+			timestamp: Date.now()
+		  }, (err) => {
+			if (err) {
+			  debugLog('Error sending message: ' + err.message);
+			} else {
+			  debugLog('Message sent');
+			}
+		  });
+		}
+
+		input.value = '';
+		input.focus();
 	  }
 
 	  // ==========================================
@@ -478,6 +768,32 @@
 		toggleNightMode();
 	  });
 
+	  document.getElementById('btn-chat-toggle').addEventListener('click', (e) => {
+		e.stopPropagation();
+		if (gameMode === 'ONLINE') {
+		  toggleChat();
+		} else {
+		  debugLog('Chat only available in online mode');
+		}
+	  });
+
+	  document.getElementById('btn-close-chat').addEventListener('click', (e) => {
+		e.stopPropagation();
+		toggleChat();
+	  });
+
+	  document.getElementById('btn-send-chat').addEventListener('click', (e) => {
+		e.stopPropagation();
+		sendChatMessage();
+	  });
+
+	  document.getElementById('chat-input').addEventListener('keypress', (e) => {
+		if (e.key === 'Enter' && !e.shiftKey) {
+		  e.preventDefault();
+		  sendChatMessage();
+		}
+	  });
+
 	  document.getElementById('btn-copy-debug').addEventListener('click', (e) => {
 		e.stopPropagation();
 		navigator.clipboard.writeText(debugLogEl.innerText).then(() => {
@@ -538,6 +854,25 @@
 
 		debugLog('Syncing to Firebase: phase=' + gamePhase + ', turn=' + currentTurn + ', winner=' + winner);
 		currentRoomRef.update(payload).catch(err => debugLog('Firebase Write Error:', err));
+	  }
+
+	  function announceTurnInChat(playerNum) {
+		if (gameMode !== 'ONLINE' || !currentRoomRef) return;
+
+		const playerName = playerNum === 1 ? 'Player 1 (Blue)' : 'Player 2 (Red)';
+		const chatRef = currentRoomRef.child('chat');
+
+		chatRef.push({
+		  isSystem: true,
+		  text: playerName + "'s Turn",
+		  timestamp: Date.now()
+		}, (err) => {
+		  if (err) {
+			debugLog('Error announcing turn: ' + err.message);
+		  } else {
+			debugLog('Turn announced: ' + playerName);
+		  }
+		});
 	  }
 
 	  // ==========================================
@@ -676,6 +1011,7 @@
 			  if (!hasAvailableMoves(currentTurn)) {
 				triggerWin(prevPlayer);
 			  } else {
+				announceTurnInChat(currentTurn);
 				syncRoomState();
 			  }
 
@@ -1074,6 +1410,7 @@
 
 		  currentRoomRef = firebaseDb.ref('rooms/' + roomCode);
 		  gameMode = 'ONLINE';
+		  enableChatForOnline();
 
 		  document.getElementById('modal-start-menu').classList.add('hidden');
 		  document.getElementById('btn-close-menu').classList.remove('hidden');
@@ -1192,6 +1529,53 @@
 			}
 		  });
 
+		  // Set up chat listener
+		  let isInitialLoadComplete = false;
+		  const chatRef = currentRoomRef.child('chat');
+		  chatRef.limitToLast(20).on('child_added', snapshot => {
+			try {
+			  const msg = snapshot.val();
+			  if (msg) {
+				if (msg.isSystem) {
+				  // System message (turn announcement)
+				  displayChatMessage(null, msg.text, msg.timestamp || Date.now(), false, true);
+				  chatMessages.push(msg);
+				  debugLog('System message received: ' + msg.text);
+
+				  // Mark as unseen only if chat is closed and this is after initial load
+				  if (isInitialLoadComplete && document.getElementById('chat-panel').classList.contains('hidden')) {
+					incrementUnseenChatCount(roomCodeDisplay);
+					unseenChatCount++;
+				  }
+				} else if (msg.sender && msg.text) {
+				  // Regular player message
+				  const isOwn = msg.sender === localPlayerName;
+				  displayChatMessage(msg.sender, msg.text, msg.timestamp || Date.now(), isOwn, false);
+				  chatMessages.push(msg);
+				  debugLog('Chat message received: ' + msg.sender);
+
+				  // Auto-open chat and notify if new unseen message and chat is closed
+				  if (isInitialLoadComplete && !isOwn && document.getElementById('chat-panel').classList.contains('hidden')) {
+					incrementUnseenChatCount(roomCodeDisplay);
+					unseenChatCount++;
+					toggleChat(); // Auto-open chat
+					playNotificationSound();
+					flashWindow();
+					debugLog('New message received - chat opened');
+				  }
+				}
+			  }
+			  // Mark initial load as complete after first listener tick
+			  if (!isInitialLoadComplete) {
+				isInitialLoadComplete = true;
+				// Load unseen count from cookie on first load
+				unseenChatCount = getUnseenChatCount(roomCodeDisplay);
+			  }
+			} catch (e) {
+			  debugLog('Error in chat listener: ' + e);
+			}
+		  });
+
 		} catch (err) {
 		  console.error('setupOnlineRoom error', err);
 		  debugLog('setupOnlineRoom error: ' + (err && err.message ? err.message : err));
@@ -1215,6 +1599,7 @@
 		gameMode = 'LOCAL';
 		document.getElementById('modal-start-menu').classList.add('hidden');
 		document.getElementById('btn-close-menu').classList.remove('hidden');
+		disableChatForLocal();
 		debugLog('Started Local Pass & Play');
 		resetGameLogic();
 	  });
