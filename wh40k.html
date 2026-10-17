@@ -676,6 +676,7 @@
 
 	  // Three.js Scene Setup
 	  let scene, camera, renderer, controls;
+	  let raycaster, mouse;
 
 	  function initScene() {
 		// Scene
@@ -717,8 +718,8 @@
 		scene.add(gridHelper);
 
 		// Initialize raycaster for mouse selection
-		window.raycaster = new THREE.Raycaster();
-		window.mouse = new THREE.Vector2();
+		raycaster = new THREE.Raycaster();
+		mouse = new THREE.Vector2();
 
 		animate();
 	}
@@ -882,92 +883,97 @@
 			  });
 			});
 			debugLog('Units rendered to 3D scene');
+
+			// NOW attach event listeners after scene is ready
+			attachMouseHandlers();
 		  }
 
-		  document.addEventListener('mousemove', (event) => {
-			if (!gameState.gameStarted || !battleState.allowInteraction) return;
+		  function attachMouseHandlers() {
+			document.addEventListener('mousemove', (event) => {
+			  if (!gameState.gameStarted || !battleState.allowInteraction) return;
 
-			mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-			mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-		  });
+			  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+			  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+			});
 
-		  document.addEventListener('click', (event) => {
-			if (!gameState.gameStarted || !battleState.allowInteraction) return;
-			if (event.target.closest('#battle-controls, #unit-stats-panel, #game-status, .ui-panel')) return;
+			document.addEventListener('click', (event) => {
+			  if (!gameState.gameStarted || !battleState.allowInteraction) return;
+			  if (event.target.closest('#battle-controls, #unit-stats-panel, #game-status, .ui-panel')) return;
 
-			raycaster.setFromCamera(mouse, camera);
+			  raycaster.setFromCamera(mouse, camera);
 
-			// Check unit selection
-			const unitMeshes = battleState.unitMeshes[battleState.activePlayer] || [];
-			const unitIntersects = raycaster.intersectObjects(unitMeshes);
+			  // Check unit selection
+			  const unitMeshes = battleState.unitMeshes[battleState.activePlayer] || [];
+			  const unitIntersects = raycaster.intersectObjects(unitMeshes);
 
-			if (unitIntersects.length > 0 && !moveMode && !targetMode) {
-			  const hitMesh = unitIntersects[0].object;
-			  selectedUnitPlayer = hitMesh.userData.unitPlayer;
-			  selectedUnitIndex = hitMesh.userData.unitIndex;
+			  if (unitIntersects.length > 0 && !moveMode && !targetMode) {
+				const hitMesh = unitIntersects[0].object;
+				selectedUnitPlayer = hitMesh.userData.unitPlayer;
+				selectedUnitIndex = hitMesh.userData.unitIndex;
 
-			  if (selectedUnitPlayer === battleState.activePlayer) {
-				const unit = battleState.unitInstances[battleState.activePlayer][selectedUnitIndex];
-				selectUnit(unit, battleState.activePlayer);
-				triggerContextualHint('select-unit');
-				addActionToLog('Selected ' + unit.name, 'action');
-				return;
-			  }
-			}
-
-			// Check terrain click for movement
-			if (moveMode && selectedUnitIndex !== null) {
-			  const terrainIntersects = raycaster.intersectObjects(
-				terrainObjects.map(t => t.mesh)
-			  );
-
-			  let intersectPoint = null;
-			  if (terrainIntersects.length > 0) {
-				intersectPoint = terrainIntersects[0].point;
-			  } else {
-				// Click on ground
-				const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-				intersectPoint = new THREE.Vector3();
-				raycaster.ray.intersectPlane(plane, intersectPoint);
-			  }
-
-			  if (intersectPoint) {
-				const unit = battleState.unitInstances[battleState.activePlayer][selectedUnitIndex];
-				const targetPos = { x: intersectPoint.x, z: intersectPoint.z };
-
-				if (moveUnit(unit, targetPos)) {
-				  // Update mesh position
-				  battleState.unitMeshes[battleState.activePlayer][selectedUnitIndex].position.set(targetPos.x, 0.5, targetPos.z);
-				  addActionToLog(unit.name + ' moved to (' + Math.round(targetPos.x) + ', ' + Math.round(targetPos.z) + ')', 'action');
-				  triggerContextualHint('move-unit');
-				  completeMovement();
-				  moveMode = false;
-				} else {
-				  showHint('Invalid move - check range, terrain, and line of sight!');
+				if (selectedUnitPlayer === battleState.activePlayer) {
+				  const unit = battleState.unitInstances[battleState.activePlayer][selectedUnitIndex];
+				  selectUnit(unit, battleState.activePlayer);
+				  triggerContextualHint('select-unit');
+				  addActionToLog('Selected ' + unit.name, 'action');
+				  return;
 				}
 			  }
-			}
 
-			// Check target selection for shooting
-			if (targetMode && selectedUnitIndex !== null) {
-			  const enemyMeshes = battleState.unitMeshes[battleState.activePlayer === 1 ? 2 : 1] || [];
-			  const enemyIntersects = raycaster.intersectObjects(enemyMeshes);
+			  // Check terrain click for movement
+			  if (moveMode && selectedUnitIndex !== null) {
+				const terrainIntersects = raycaster.intersectObjects(
+				  terrainObjects.map(t => t.mesh)
+				);
 
-			  if (enemyIntersects.length > 0) {
-				const hitMesh = enemyIntersects[0].object;
-				const enemyIndex = hitMesh.userData.unitIndex;
-				const enemyPlayer = hitMesh.userData.unitPlayer;
+				let intersectPoint = null;
+				if (terrainIntersects.length > 0) {
+				  intersectPoint = terrainIntersects[0].point;
+				} else {
+				  // Click on ground
+				  const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+				  intersectPoint = new THREE.Vector3();
+				  raycaster.ray.intersectPlane(plane, intersectPoint);
+				}
 
-				const attacker = battleState.unitInstances[battleState.activePlayer][selectedUnitIndex];
-				const target = battleState.unitInstances[enemyPlayer][enemyIndex];
+				if (intersectPoint) {
+				  const unit = battleState.unitInstances[battleState.activePlayer][selectedUnitIndex];
+				  const targetPos = { x: intersectPoint.x, z: intersectPoint.z };
 
-				shootAtTarget(attacker, target);
-				addActionToLog(attacker.name + ' shot at ' + target.name, 'damage');
-				triggerContextualHint('shoot-phase');
-				targetMode = false;
+				  if (moveUnit(unit, targetPos)) {
+					// Update mesh position
+					battleState.unitMeshes[battleState.activePlayer][selectedUnitIndex].position.set(targetPos.x, 0.5, targetPos.z);
+					addActionToLog(unit.name + ' moved to (' + Math.round(targetPos.x) + ', ' + Math.round(targetPos.z) + ')', 'action');
+					triggerContextualHint('move-unit');
+					completeMovement();
+					moveMode = false;
+				  } else {
+					showHint('Invalid move - check range, terrain, and line of sight!');
+				  }
+				}
 			  }
-			}
-		  });
+
+			  // Check target selection for shooting
+			  if (targetMode && selectedUnitIndex !== null) {
+				const enemyMeshes = battleState.unitMeshes[battleState.activePlayer === 1 ? 2 : 1] || [];
+				const enemyIntersects = raycaster.intersectObjects(enemyMeshes);
+
+				if (enemyIntersects.length > 0) {
+				  const hitMesh = enemyIntersects[0].object;
+				  const enemyIndex = hitMesh.userData.unitIndex;
+				  const enemyPlayer = hitMesh.userData.unitPlayer;
+
+				  const attacker = battleState.unitInstances[battleState.activePlayer][selectedUnitIndex];
+				  const target = battleState.unitInstances[enemyPlayer][enemyIndex];
+
+				  shootAtTarget(attacker, target);
+				  addActionToLog(attacker.name + ' shot at ' + target.name, 'damage');
+				  triggerContextualHint('shoot-phase');
+				  targetMode = false;
+				}
+			  }
+			});
+		  }
 
 		  // ==========================================
 		  // UI MANAGEMENT
