@@ -3,7 +3,7 @@
   <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Warhammer 40K Combat Patrol</title>
+	<title>Warhammer 40K Combat Patrol 1.1</title>
 
 	<!-- Tailwind CSS -->
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
@@ -17,10 +17,10 @@
 	<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
 
 	<style>
-	  body { margin: 0; overflow: hidden; background-color: #1a1a2e; font-family: Arial, sans-serif; }
+	  body { margin: 0; overflow: hidden; background-color: #1a1a2e; font-family: Arial, sans-serif; position: relative; }
 	  #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
 	  .pointer-events-auto { pointer-events: auto; }
-	  #canvas-container { width: 100vw; height: 100vh; display: block; }
+	  #canvas-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; display: block; }
 
 	  /* UI Panel Styles */
 	  .ui-panel {
@@ -679,49 +679,74 @@
 	  let raycaster, mouse;
 
 	  function initScene() {
-		// Scene
-		scene = new THREE.Scene();
-		scene.background = new THREE.Color(0x0a0e27);
-		scene.fog = new THREE.Fog(0x0a0e27, 100, 500);
+		console.log('=== initScene() START ===');
+		try {
+		  // Scene
+		  console.log('Creating THREE.Scene...');
+		  scene = new THREE.Scene();
+		  console.log('Scene created:', scene);
+		  scene.background = new THREE.Color(0x0a0e27);
+		  scene.fog = new THREE.Fog(0x0a0e27, 100, 500);
 
-		// Camera
-		camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-		camera.position.set(0, 15, 15);
-		camera.lookAt(0, 0, 0);
+		  // Camera
+		  console.log('Creating PerspectiveCamera...');
+		  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+		  camera.position.set(0, 15, 15);
+		  camera.lookAt(0, 0, 0);
+		  console.log('Camera created:', camera);
 
-		// Renderer
-		renderer = new THREE.WebGLRenderer({ antialias: true });
-		renderer.setSize(window.innerWidth, window.innerHeight);
-		renderer.shadowMap.enabled = true;
-		document.getElementById('canvas-container').appendChild(renderer.domElement);
+		  // Renderer
+		  console.log('Creating WebGLRenderer, window size:', window.innerWidth, 'x', window.innerHeight);
+		  renderer = new THREE.WebGLRenderer({ antialias: true });
+		  renderer.setSize(window.innerWidth, window.innerHeight);
+		  renderer.shadowMap.enabled = true;
+		  console.log('Renderer created, looking for canvas-container...');
 
-		// Controls
-		controls = new THREE.OrbitControls(camera, renderer.domElement);
-		controls.enableDamping = true;
-		controls.dampingFactor = 0.05;
-		controls.autoRotate = true;
-		controls.autoRotateSpeed = 2;
+		  const container = document.getElementById('canvas-container');
+		  console.log('Canvas container:', container, 'Size:', container ? container.offsetWidth + 'x' + container.offsetHeight : 'N/A');
+		  if (!container) throw new Error('canvas-container not found!');
 
-		// Lighting
-		const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-		scene.add(ambientLight);
+		  container.appendChild(renderer.domElement);
+		  console.log('Renderer appended to DOM');
 
-		const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-		directionalLight.position.set(50, 50, 50);
-		directionalLight.castShadow = true;
-		directionalLight.shadow.mapSize.width = 2048;
-		directionalLight.shadow.mapSize.height = 2048;
-		scene.add(directionalLight);
+		  // Controls
+		  console.log('Creating OrbitControls...');
+		  controls = new THREE.OrbitControls(camera, renderer.domElement);
+		  controls.enableDamping = true;
+		  controls.dampingFactor = 0.05;
+		  controls.autoRotate = true;
+		  controls.autoRotateSpeed = 2;
 
-		// Grid floor
-		const gridHelper = new THREE.GridHelper(100, 20, 0x444444, 0x222222);
-		scene.add(gridHelper);
+		  // Lighting
+		  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+		  scene.add(ambientLight);
 
-		// Initialize raycaster for mouse selection
-		raycaster = new THREE.Raycaster();
-		mouse = new THREE.Vector2();
+		  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+		  directionalLight.position.set(50, 50, 50);
+		  directionalLight.castShadow = true;
+		  directionalLight.shadow.mapSize.width = 2048;
+		  directionalLight.shadow.mapSize.height = 2048;
+		  scene.add(directionalLight);
+		  console.log('Lights added');
 
-		animate();
+		  // Grid floor
+		  const gridHelper = new THREE.GridHelper(100, 20, 0x444444, 0x222222);
+		  scene.add(gridHelper);
+		  console.log('Grid added');
+
+		  // Initialize raycaster for mouse selection
+		  raycaster = new THREE.Raycaster();
+		  mouse = new THREE.Vector2();
+		  console.log('Raycaster initialized');
+
+		  console.log('Starting animation loop');
+		  animate();
+		  console.log('=== initScene() COMPLETE ===');
+		} catch (error) {
+		  console.error('FATAL ERROR in initScene():', error.message);
+		  console.error(error);
+		  document.body.innerHTML = '<div style="padding:20px; color:red; font-family:monospace; white-space:pre-wrap;">FATAL ERROR:\n' + error.message + '\n\n' + error.stack + '</div>';
+		}
 	}
 
 		  function animate() {
@@ -1833,6 +1858,14 @@
 	  }
 
 	  document.addEventListener('DOMContentLoaded', () => {
+		console.log('=== DOMContentLoaded START ===');
+		console.log('Document ready. DOM elements to check:');
+		console.log('  #canvas-container:', document.getElementById('canvas-container'));
+		console.log('  #modal-start-menu:', document.getElementById('modal-start-menu'));
+		console.log('  #game-info:', document.getElementById('game-info'));
+		console.log('  Body element:', document.body);
+
+		console.log('Calling initScene()...');
 		initScene();
 		debugLog('Scene initialized');
 
@@ -1916,6 +1949,9 @@
 			startGame();
 		  }
 		});
+
+		console.log('=== DOMContentLoaded COMPLETE ===');
+		console.log('Ready for user interaction. Modal should be visible.');
 	  });
 
 	  // Battle control buttons
