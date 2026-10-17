@@ -1,0 +1,2164 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Warhammer 40K Combat Patrol</title>
+
+	<!-- Tailwind CSS -->
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
+
+	<!-- Three.js -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+	<!-- Firebase -->
+	<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+	<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+	<style>
+	  body { margin: 0; overflow: hidden; background-color: #1a1a2e; font-family: Arial, sans-serif; }
+	  #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+	  .pointer-events-auto { pointer-events: auto; }
+	  #canvas-container { width: 100vw; height: 100vh; display: block; }
+
+	  /* UI Panel Styles */
+	  .ui-panel {
+		background-color: #16213e;
+		border: 2px solid #0f3460;
+		border-radius: 8px;
+		color: #eaeaea;
+		font-size: 14px;
+		padding: 12px;
+		box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+	  }
+
+	  #status-panel {
+		position: absolute;
+		top: 16px;
+		left: 16px;
+		max-width: 350px;
+	  }
+
+	  #game-info {
+		font-weight: bold;
+		color: #00d4ff;
+		margin-bottom: 8px;
+	  }
+
+	  #game-status {
+		font-size: 12px;
+		color: #aaa;
+		margin-top: 4px;
+	  }
+
+	  /* Start Menu Modal */
+	  #modal-start-menu {
+		position: absolute;
+		inset: 0;
+		background-color: rgba(0, 0, 0, 0.8);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		pointer-events: auto;
+		z-index: 100;
+	  }
+
+	  #modal-start-menu.hidden {
+		display: none;
+	  }
+
+	  .modal-content {
+		background-color: #16213e;
+		border: 3px solid #0f3460;
+		border-radius: 12px;
+		padding: 24px;
+		max-width: 600px;
+		width: 90%;
+		max-height: 80vh;
+		overflow-y: auto;
+		color: #eaeaea;
+	  }
+
+	  .modal-content h1 {
+		font-size: 28px;
+		font-weight: bold;
+		color: #00d4ff;
+		margin-bottom: 16px;
+		text-align: center;
+	  }
+
+	  .modal-content h2 {
+		font-size: 18px;
+		color: #00d4ff;
+		margin-top: 16px;
+		margin-bottom: 8px;
+	  }
+
+	  .modal-content p {
+		font-size: 13px;
+		line-height: 1.5;
+		margin-bottom: 8px;
+		color: #ccc;
+	  }
+
+	  .faction-selector {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 12px;
+		margin-bottom: 16px;
+	  }
+
+	  .faction-button {
+		padding: 12px;
+		border: 2px solid #0f3460;
+		border-radius: 6px;
+		background-color: #0f3460;
+		color: #00d4ff;
+		cursor: pointer;
+		font-weight: bold;
+		transition: all 0.3s;
+	  }
+
+	  .faction-button:hover {
+		background-color: #1a4d7a;
+		border-color: #00d4ff;
+	  }
+
+	  .faction-button.selected {
+		background-color: #00d4ff;
+		color: #16213e;
+		border-color: #00d4ff;
+	  }
+
+	  .action-button {
+		padding: 12px 24px;
+		margin: 8px 0;
+		background-color: #0f3460;
+		color: #00d4ff;
+		border: 2px solid #00d4ff;
+		border-radius: 6px;
+		cursor: pointer;
+		font-weight: bold;
+		font-size: 14px;
+		width: 100%;
+		transition: all 0.3s;
+	  }
+
+	  .action-button:hover {
+		background-color: #00d4ff;
+		color: #16213e;
+	  }
+
+	  .action-button:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	  }
+
+	  /* Debug Panel */
+	  #debug-panel {
+		position: absolute;
+		bottom: 10px;
+		right: 10px;
+		width: 350px;
+		max-height: 250px;
+		background: rgba(15, 23, 42, 0.95);
+		color: #38bdf8;
+		font-family: monospace;
+		font-size: 10px;
+		border-radius: 8px;
+		display: flex;
+		flex-direction: column;
+		box-shadow: 0 4px 6px rgba(0,0,0,0.5);
+		pointer-events: auto;
+		z-index: 40;
+		transition: max-height 0.2s ease-in-out;
+		overflow: hidden;
+		border: 1px solid #0f3460;
+	  }
+
+	  #debug-panel.hidden {
+		display: none;
+	  }
+
+	  /* Tutorial Styles */
+	  .modal-overlay {
+		position: absolute;
+		top: 0;
+		left: 0;
+		width: 100%;
+		height: 100%;
+		background-color: rgba(0, 0, 0, 0.7);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1000;
+	  }
+
+	  .modal-content {
+		background-color: #16213e;
+		border: 2px solid #0f3460;
+		border-radius: 8px;
+		color: #eaeaea;
+		padding: 24px;
+		box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+	  }
+
+	  #debug-log {
+		flex: 1;
+		overflow-y: auto;
+		padding: 8px;
+		word-wrap: break-word;
+	  }
+
+	  .debug-button {
+		background-color: #0f3460;
+		border: 1px solid #00d4ff;
+		color: #00d4ff;
+		padding: 4px 8px;
+		margin: 2px;
+		border-radius: 4px;
+		cursor: pointer;
+		font-size: 10px;
+	  }
+
+	  #btn-debug-toggle {
+		position: fixed;
+		bottom: 4px;
+		right: 4px;
+		background-color: #0f3460;
+		border: 1px solid #00d4ff;
+		color: #00d4ff;
+		padding: 8px 12px;
+		border-radius: 6px;
+		cursor: pointer;
+		font-weight: bold;
+		z-index: 39;
+	  }
+
+	  /* Mobile Responsive */
+	  @media (max-width: 768px) {
+		.modal-content {
+		  padding: 16px;
+		}
+
+		.modal-content h1 {
+		  font-size: 22px;
+		}
+
+		.faction-selector {
+		  grid-template-columns: 1fr;
+		}
+
+		  #debug-panel {
+			width: calc(100vw - 16px);
+			max-width: 100%;
+			font-size: 9px;
+		  }
+		}
+
+		/* Unit Selection & Stats Panel */
+		#unit-stats-panel {
+		  position: absolute;
+		  top: 16px;
+		  right: 16px;
+		  max-width: 280px;
+		  max-height: 400px;
+		  overflow-y: auto;
+		}
+
+		#unit-stats-panel.hidden {
+		  display: none;
+		}
+
+		.unit-stat-row {
+		  display: flex;
+		  justify-content: space-between;
+		  padding: 6px;
+		  border-bottom: 1px solid #0f3460;
+		  font-size: 12px;
+		}
+
+		.unit-stat-label {
+		  color: #00d4ff;
+		  font-weight: bold;
+		}
+
+		.unit-stat-value {
+		  color: #eaeaea;
+		}
+
+		/* Action History */
+		#action-history-panel {
+		  position: absolute;
+		  bottom: 16px;
+		  left: 16px;
+		  max-width: 300px;
+		  max-height: 200px;
+		  overflow-y: auto;
+		  font-size: 11px;
+		  background-color: rgba(22, 33, 62, 0.9);
+		}
+
+		#action-history-panel.hidden {
+		  display: none;
+		}
+
+		.action-log-entry {
+		  padding: 4px 8px;
+		  border-bottom: 1px solid #0f3460;
+		  color: #aaaaaa;
+		}
+
+		.action-log-entry.action {
+		  color: #00d4ff;
+		}
+
+		.action-log-entry.damage {
+		  color: #ff6b6b;
+		}
+
+		.action-log-entry.heal {
+		  color: #51cf66;
+		}
+
+		/* Unit Selection Highlight */
+		.unit-selected {
+		  filter: drop-shadow(0 0 10px #00d4ff);
+		}
+
+		/* Control Buttons */
+		#battle-controls {
+		  position: absolute;
+		  bottom: 16px;
+		  left: 50%;
+		  transform: translateX(-50%);
+		  display: flex;
+		  gap: 8px;
+		  z-index: 50;
+		}
+
+		.battle-button {
+		  padding: 10px 20px;
+		  background-color: #0f3460;
+		  border: 1px solid #00d4ff;
+		  color: #00d4ff;
+		  font-weight: bold;
+		  cursor: pointer;
+		  border-radius: 4px;
+		  transition: all 0.2s;
+		}
+
+		.battle-button:hover:not(:disabled) {
+		  background-color: #1a4d7b;
+		  box-shadow: 0 0 10px #00d4ff;
+		}
+
+		.battle-button:disabled {
+		  opacity: 0.5;
+		  cursor: not-allowed;
+		}
+
+		.battle-button.active {
+		  background-color: #00d4ff;
+		  color: #1a1a2e;
+		}
+
+  </head>
+  <body>
+	<div id="canvas-container"></div>
+
+	<!-- UI Layer -->
+	<div id="ui-layer" class="flex flex-col justify-between p-4">
+	  <div>
+		<div id="status-panel" class="ui-panel">
+		  <div id="game-info">WH40K Combat Patrol</div>
+		  <div id="game-status">Initializing...</div>
+		</div>
+
+		<!-- Unit Stats Panel -->
+		<div id="unit-stats-panel" class="ui-panel hidden">
+		  <div style="font-weight: bold; color: #00d4ff; margin-bottom: 8px; border-bottom: 1px solid #0f3460; padding-bottom: 8px;">
+			<span id="selected-unit-name">No Unit Selected</span>
+		  </div>
+		  <div id="unit-stats-content"></div>
+		</div>
+
+		<!-- Action History Panel -->
+		<div id="action-history-panel" class="ui-panel hidden">
+		  <div style="font-weight: bold; color: #00d4ff; margin-bottom: 8px;">Action Log</div>
+		  <div id="action-history-content"></div>
+		</div>
+
+		<!-- Battle Control Buttons -->
+		<div id="battle-controls" style="display: none;">
+		  <button class="battle-button" id="btn-move-unit">Move Unit</button>
+		  <button class="battle-button" id="btn-shoot">Shoot</button>
+		  <button class="battle-button" id="btn-charge">Charge</button>
+		  <button class="battle-button" id="btn-end-unit">End Unit</button>
+		  <button class="battle-button" id="btn-end-turn">End Turn</button>
+		</div>
+	  </div>
+	</div>
+
+	<!-- Start Menu Modal -->
+	<div id="modal-start-menu">
+	  <div class="modal-content">
+		<h1>⚔️ Warhammer 40K Combat Patrol</h1>
+		<h2>Select Your Army</h2>
+
+		<div class="faction-selector" id="faction-selector">
+		  <button class="faction-button" data-faction="space-marines">
+			🔵 Space Marines<br><span style="font-size: 11px; color: #aaa;">Balanced, tough warriors</span>
+		  </button>
+		  <button class="faction-button" data-faction="necrons">
+			🟩 Necrons<br><span style="font-size: 11px; color: #aaa;">Ancient, resilient robots</span>
+		  </button>
+		</div>
+
+		<div id="faction-info" style="background-color: #0f3460; padding: 12px; border-radius: 6px; margin-bottom: 16px; font-size: 12px;">
+		  <p>Select a faction to learn about their units and abilities...</p>
+		</div>
+
+		<h2>Game Mode</h2>
+		<label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
+		  <input type="radio" name="game-mode" value="tutorial" checked style="margin-right: 8px;">
+		  <span>Tutorial Mode (Guided First Game)</span>
+		</label>
+		<label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
+		  <input type="radio" name="game-mode" value="skirmish" style="margin-right: 8px;">
+		  <span>Skirmish (Quick Multiplayer)</span>
+		</label>
+
+		<h2>Multiplayer</h2>
+		<label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
+		  <input type="radio" name="online-mode" value="local" checked style="margin-right: 8px;">
+		  <span>Local (Same Device)</span>
+		</label>
+		<label style="display: flex; align-items: center; margin: 8px 0; cursor: pointer;">
+		  <input type="radio" name="online-mode" value="online" style="margin-right: 8px;">
+		  <span>Online (Firebase)</span>
+		</label>
+
+		<input type="text" id="player-name" placeholder="Your Name" style="width: 100%; padding: 8px; margin: 16px 0; border: 1px solid #0f3460; border-radius: 4px; background-color: #0f3460; color: #eaeaea;">
+		<input type="text" id="room-code" placeholder="Room Code (Online Only)" style="width: 100%; padding: 8px; margin: 8px 0; border: 1px solid #0f3460; border-radius: 4px; background-color: #0f3460; color: #eaeaea;">
+
+		<button id="btn-start-game" class="action-button" disabled>Start Battle</button>
+		<div id="status-message" style="color: #ff6b6b; font-size: 12px; text-align: center; margin-top: 8px;"></div>
+	  </div>
+	</div>
+
+	<!-- Debug Panel -->
+	<div id="debug-panel" class="hidden">
+	  <div style="display: flex; justify-content: space-between; padding: 4px; border-bottom: 1px solid #0f3460;">
+		<button class="debug-button" id="btn-copy-debug">Copy</button>
+		<button class="debug-button" id="btn-close-debug">Close</button>
+	  </div>
+	  <div id="debug-log"></div>
+	</div>
+
+	<!-- Tutorial Modal -->
+	<div id="tutorial-modal" class="modal-overlay" style="display: none;">
+	  <div class="modal-content" style="max-width: 500px;">
+		<div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0f3460; padding-bottom: 16px; margin-bottom: 16px;">
+		  <h2 style="margin: 0; color: #00d4ff;">Battle Tutorial</h2>
+		  <button id="btn-close-tutorial" style="background: none; border: none; color: #eaeaea; font-size: 20px; cursor: pointer;">&times;</button>
+		</div>
+		<div id="tutorial-content" style="font-size: 14px; line-height: 1.6; color: #eaeaea; max-height: 400px; overflow-y: auto;"></div>
+		<div style="margin-top: 16px; display: flex; gap: 8px;">
+		  <button id="btn-tutorial-prev" style="flex: 1; padding: 8px; background-color: #0f3460; border: 1px solid #00d4ff; color: #00d4ff; cursor: pointer; border-radius: 4px;">← Previous</button>
+		  <button id="btn-tutorial-next" style="flex: 1; padding: 8px; background-color: #0f3460; border: 1px solid #00d4ff; color: #00d4ff; cursor: pointer; border-radius: 4px;">Next →</button>
+		</div>
+	  </div>
+	</div>
+
+	<!-- Hint Toast (tooltip) -->
+	<div id="hint-toast" style="position: absolute; bottom: 20px; right: 20px; background-color: #0f3460; border: 2px solid #00d4ff; color: #eaeaea; padding: 12px 16px; border-radius: 4px; display: none; font-size: 12px; max-width: 250px; z-index: 1001;">
+	  <div id="hint-text"></div>
+	</div>
+
+	<button id="btn-debug-toggle">🐛 Debug</button>
+
+	<script>
+	  // ========================================================================
+	  // WARHAMMER 40K COMBAT PATROL - LEARNING GAME
+	  // ========================================================================
+	  // A simplified, tutorialized 2-player Warhammer 40K battle simulator
+	  // featuring procedural terrain, dice-based combat resolution, and
+	  // interactive campaign guidance.
+	  //
+	  // FEATURES:
+	  // - 2 factions: Space Marines (balanced), Necrons (ranged-focused)
+	  // - Preset squads with full unit stats and weapons
+	  // - Procedurally generated 3D terrain with cover pieces
+	  // - Complete turn sequence: Movement → Shooting → Charge → Fight
+	  // - Dice-based attack resolution (to-hit, to-wound, saves, damage)
+	  // - Morale checks and unit destruction tracking
+	  // - Victory conditions: 50% army points, full elimination, or round limit
+	  // - 8-step interactive tutorial guiding new players
+	  // - UI panels for unit stats, action history, and phase controls
+	  // - Firebase integration ready for online multiplayer
+	  // - Debug logging and visual feedback for learning
+	  //
+	  // ARCHITECTURE:
+	  // - Single-file HTML + CSS + Vanilla JS + Three.js + Firebase
+	  // - Game state: gameState (settings), battleState (current battle)
+	  // - Unit management: unitInstances with wound tracking per model
+	  // - Phase system: MOVEMENT → SHOOTING → CHARGE → FIGHT → END_UNIT → END_TURN
+	  // - Combat resolution: Probability-based dice rolling with modifiers
+	  //
+	  // FUTURE IMPROVEMENTS:
+	  // - Online multiplayer via Firebase Realtime Database sync
+	  // - Animated 3D unit models (current: primitive placement)
+	  // - Advanced tactics: cover bonuses, obscurement, stratagems
+	  // - Campaign progression and AI opponent difficulty
+	  // - Sound effects and visual polish
+	  // ========================================================================
+
+	  // ==========================================
+	  // STARTUP & INITIALIZATION
+	  // ==========================================
+	  console.log('WH40K Combat Patrol loaded');
+
+	  let gameState = {
+		playerName: '',
+		faction: null,
+		gameMode: 'tutorial',
+		onlineMode: 'local',
+		roomCode: null,
+		gameStarted: false,
+		currentTurn: 1,
+		turn: {
+		  player: 1,
+		  phase: 'movement' // movement, shooting, charging, fighting
+		}
+	  };
+
+	  // ==========================================
+	  // ARMY & SQUAD DEFINITIONS (10th Edition)
+	  // ==========================================
+	  const SQUADS = {
+		'space-marines': {
+		  name: 'Space Marines',
+		  color: 0x2563eb,
+		  points: 500,
+		  units: [
+			{
+			  id: 'sm-squad-1',
+			  name: 'Tactical Squad',
+			  count: 5,
+			  model: 'marine',
+			  points: 80,
+			  weapon: 'bolter',
+			  stats: {
+				movement: 6,
+				toughness: 4,
+				save: 3, // 3+ armor save
+				wounds: 1,
+				leadership: 8
+			  },
+			  weapons: {
+				bolter: {
+				  range: 24,
+				  attacks: 1,
+				  ballisticSkill: 3, // 3+ to hit
+				  strength: 4,
+				  damage: 1,
+				  ap: 0
+				}
+			  }
+			},
+			{
+			  id: 'sm-squad-2',
+			  name: 'Devastator Squad',
+			  count: 3,
+			  model: 'marine-heavy',
+			  points: 120,
+			  weapon: 'heavy-bolter',
+			  stats: {
+				movement: 4,
+				toughness: 4,
+				save: 3,
+				wounds: 1,
+				leadership: 8
+			  },
+			  weapons: {
+				'heavy-bolter': {
+				  range: 36,
+				  attacks: 3,
+				  ballisticSkill: 3,
+				  strength: 5,
+				  damage: 2,
+				  ap: -1
+				}
+			  }
+			}
+		  ]
+		},
+		'necrons': {
+		  name: 'Necrons',
+		  color: 0x22c55e,
+		  points: 500,
+		  units: [
+			{
+			  id: 'ncr-squad-1',
+			  name: 'Warrior Squad',
+			  count: 5,
+			  model: 'necron-warrior',
+			  points: 80,
+			  weapon: 'gauss-flayer',
+			  stats: {
+				movement: 5,
+				toughness: 4,
+				save: 4, // 4+ armor
+				wounds: 1,
+				leadership: 8,
+				invulnerable: 5 // 5+ invuln save
+			  },
+			  weapons: {
+				'gauss-flayer': {
+				  range: 18,
+				  attacks: 1,
+				  ballisticSkill: 3,
+				  strength: 4,
+				  damage: 1,
+				  ap: 0
+				}
+			  }
+			},
+			{
+			  id: 'ncr-squad-2',
+			  name: 'Immortals',
+			  count: 3,
+			  model: 'immortal',
+			  points: 120,
+			  weapon: 'tesla-carbine',
+			  stats: {
+				movement: 5,
+				toughness: 5,
+				save: 3, // 3+ armor
+				wounds: 2,
+				leadership: 9,
+				invulnerable: 4 // 4+ invuln
+			  },
+			  weapons: {
+				'tesla-carbine': {
+				  range: 18,
+				  attacks: 2,
+				  ballisticSkill: 3,
+				  strength: 5,
+				  damage: 1,
+				  ap: -1
+				}
+			  }
+			}
+		  ]
+		}
+	  };
+
+	  let firebaseDb;
+	  let currentRoomRef;
+	  const localSessionId = Math.random().toString(36).substring(2, 9);
+
+	  // Firebase Config
+	  const firebaseConfig = {
+		databaseURL: "https://santorino-1a999-default-rtdb.firebaseio.com"
+	  };
+
+	  console.log('Initializing Firebase');
+	  try {
+		firebase.initializeApp(firebaseConfig);
+		firebaseDb = firebase.database();
+		console.log('Firebase initialized');
+	  } catch (e) {
+		console.error('Firebase error:', e);
+	  }
+
+	  // Three.js Scene Setup
+	  let scene, camera, renderer, controls;
+
+	  function initScene() {
+		// Scene
+		scene = new THREE.Scene();
+		scene.background = new THREE.Color(0x0a0e27);
+		scene.fog = new THREE.Fog(0x0a0e27, 100, 500);
+
+		// Camera
+		camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+		camera.position.set(0, 15, 15);
+		camera.lookAt(0, 0, 0);
+
+		// Renderer
+		renderer = new THREE.WebGLRenderer({ antialias: true });
+		renderer.setSize(window.innerWidth, window.innerHeight);
+		renderer.shadowMap.enabled = true;
+		document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+		// Controls
+		controls = new THREE.OrbitControls(camera, renderer.domElement);
+		controls.enableDamping = true;
+		controls.dampingFactor = 0.05;
+		controls.autoRotate = true;
+		controls.autoRotateSpeed = 2;
+
+		// Lighting
+		const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+		scene.add(ambientLight);
+
+		const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+		directionalLight.position.set(50, 50, 50);
+		directionalLight.castShadow = true;
+		directionalLight.shadow.mapSize.width = 2048;
+		directionalLight.shadow.mapSize.height = 2048;
+		scene.add(directionalLight);
+
+		// Grid floor
+		const gridHelper = new THREE.GridHelper(100, 20, 0x444444, 0x222222);
+		scene.add(gridHelper);
+
+		// Initialize raycaster for mouse selection
+		window.raycaster = new THREE.Raycaster();
+		window.mouse = new THREE.Vector2();
+
+		animate();
+	}
+
+		  function animate() {
+			requestAnimationFrame(animate);
+			controls.update();
+			renderer.render(scene, camera);
+		  }
+
+		  // ==========================================
+		  // TERRAIN & COLLISIONS
+		  // ==========================================
+		  let terrainObjects = [];
+
+		  // ==========================================
+		  // MOVEMENT SYSTEM
+		  // ==========================================
+		  const PHASE = {
+			MOVEMENT: 'movement',
+			SHOOTING: 'shooting',
+			CHARGE: 'charge',
+			FIGHT: 'fight',
+			END_UNIT: 'end-unit'
+		  };
+
+		  let gamePhase = PHASE.MOVEMENT;
+		  let selectedTargetPos = null;
+
+		  // ==========================================
+		  // TUTORIAL SYSTEM
+		  // ==========================================
+		  let tutorialState = {
+			enabled: false,
+			currentStep: 0,
+			completed: false
+		  };
+
+		  const TUTORIAL_STEPS = [
+			{
+			  title: 'Welcome to Warhammer 40K Combat Patrol',
+			  content: '<strong>Objective:</strong> Learn the basic rules of 40K by playing a simplified learning game.<br><br><strong>Goal:</strong> Destroy at least 50% of your opponent\'s army to claim victory!<br><br>This tutorial will guide you through each phase of the battle.'
+			},
+			{
+			  title: 'The Battlefield',
+			  content: '<strong>Setup:</strong> Your units deploy on one side, enemy on the other.<br><br><strong>Terrain:</strong> Cover pieces (buildings, walls, rubble) provide protection and block line of sight.<br><br><strong>Tip:</strong> Use terrain to your advantage! Units behind cover are harder to hit.'
+			},
+			{
+			  title: 'Movement Phase (1)',
+			  content: '<strong>What happens:</strong> Each of your units can move up to its movement distance (usually 6").<br><br><strong>Actions:</strong><br> - Select a unit<br> - Click where to move<br> - Confirm the move<br><br><strong>Note:</strong> Units cannot move through terrain or other units.'
+			},
+			{
+			  title: 'Shooting Phase (2)',
+			  content: '<strong>What happens:</strong> Units can shoot at enemies in range with line of sight.<br><br><strong>Resolution:</strong><br> - To-Hit roll (Ballistic Skill)<br> - To-Wound roll (Strength vs Toughness)<br> - Armor Save roll<br> - Apply Damage<br><br><strong>Tip:</strong> Stronger weapons with better AP (Armor Penetration) are more effective!'
+			},
+			{
+			  title: 'Charge Phase (3)',
+			  content: '<strong>What happens:</strong> Units can charge into close combat with enemies within 2.5".<br><br><strong>Then:</strong> Proceed to Fight phase immediately.'
+			},
+			{
+			  title: 'Fight Phase (4)',
+			  content: '<strong>What happens:</strong> Units engaged in melee attack each other.<br><br><strong>Resolution:</strong><br> - Weapon Skill rolls (usually 3+)<br> - To-Wound rolls<br> - Saves<br> - Damage applied<br><br><strong>Both sides fight back!** Even if you attack first, enemies get to strike back.'
+			},
+			{
+			  title: 'Morale & Casualties',
+			  content: '<strong>Unit Destruction:</strong> When a unit loses all models, it\'s permanently destroyed and removed from battle.<br><br><strong>Morale:</strong> Units that lose 25%+ of their strength must pass a Leadership check or lose additional models.<br><br><strong>Victory:</strong> Destroy 50%+ of enemy points to win!'
+			},
+			{
+			  title: 'Turn Structure',
+			  content: '<strong>Each Round:</strong><br> 1. Player 1 activates all units (Movement → Shooting → Charge → Fight)<br> 2. Player 2 activates all units (same phases)<br><br><strong>Max 5 Rounds:</strong> If battle not decided by round 5, whoever killed more points wins.<br><br><strong>Good luck, Commander!**'
+			}
+		  ];
+
+		  function showTutorialStep(stepIdx) {
+			if (stepIdx < 0 || stepIdx >= TUTORIAL_STEPS.length) return;
+
+			tutorialState.currentStep = stepIdx;
+			const step = TUTORIAL_STEPS[stepIdx];
+
+			document.getElementById('tutorial-content').innerHTML = '<p>' + step.content + '</p>';
+			document.getElementById('btn-tutorial-prev').disabled = stepIdx === 0;
+			document.getElementById('btn-tutorial-next').innerText = stepIdx === TUTORIAL_STEPS.length - 1 ? 'Start Battle' : 'Next →';
+
+			document.getElementById('tutorial-modal').style.display = 'flex';
+		  }
+
+		  function closeTutorial() {
+			document.getElementById('tutorial-modal').style.display = 'none';
+			tutorialState.completed = true;
+			spawnInitialUnits(); // Begin actual gameplay after tutorial
+		  }
+
+		  function showHint(hintText) {
+			const hintToast = document.getElementById('hint-toast');
+			document.getElementById('hint-text').innerText = hintText;
+			hintToast.style.display = 'block';
+
+			setTimeout(() => {
+			  hintToast.style.display = 'none';
+			}, 4000);
+		  }
+
+		  function triggerContextualHint(context) {
+			if (!tutorialState.enabled) return;
+
+			const hints = {
+			  'select-unit': 'Select a unit to activate it. Click on a unit or press Space.',
+			  'move-unit': 'Click where you want the unit to move. It can move up to its movement distance.',
+			  'shoot-phase': 'Select an enemy unit to shoot at. The game will roll to-hit, to-wound, and saves.',
+			  'melee-phase': 'Your units are in melee! Combat will resolve automatically.',
+			  'end-turn': 'All your units activated. Press "End Turn" to pass to your opponent.',
+			  'victory': 'You have achieved victory by destroying enough enemy units!'
+			};
+
+			if (hints[context]) {
+			  debugLog('[HINT] ' + hints[context]);
+			  if (gameState.showTutorialHints !== false) {
+				showHint(hints[context]);
+			  }
+			}
+		  }
+
+		  // ==========================================
+		  // INTERACTIVE BATTLEFIELD & MOUSE SELECTION
+		  // ==========================================
+		  let selectedUnitPlayer = null;
+		  let selectedUnitIndex = null;
+		  let moveMode = false;
+		  let targetMode = false;
+
+		  function createUnitMesh(unit, player) {
+			// Create visual representation of unit on battlefield
+			const geometry = new THREE.SphereGeometry(0.8, 8, 8);
+			const material = new THREE.MeshStandardMaterial({
+			  color: player === 1 ? 0x2563eb : 0xffaa00, // Blue for P1, Orange for P2
+			  roughness: 0.7,
+			  metalness: 0.3
+			});
+			const mesh = new THREE.Mesh(geometry, material);
+
+			if (unit.position) {
+			  mesh.position.set(unit.position.x, 0.5, unit.position.z);
+			} else {
+			  mesh.position.set(0, 0.5, 0);
+			}
+
+			mesh.castShadow = true;
+			mesh.receiveShadow = true;
+			mesh.userData = { unitPlayer: player, unitIndex: battleState.unitInstances[player].indexOf(unit), type: 'unit' };
+
+			scene.add(mesh);
+			return mesh;
+		  }
+
+		  function renderUnits() {
+			// Create meshes for all units
+			[1, 2].forEach(player => {
+			  battleState.unitInstances[player].forEach((unit, idx) => {
+				const mesh = createUnitMesh(unit, player);
+				battleState.unitMeshes[player].push(mesh);
+			  });
+			});
+			debugLog('Units rendered to 3D scene');
+		  }
+
+		  document.addEventListener('mousemove', (event) => {
+			if (!gameState.gameStarted || !battleState.allowInteraction) return;
+
+			mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+			mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+		  });
+
+		  document.addEventListener('click', (event) => {
+			if (!gameState.gameStarted || !battleState.allowInteraction) return;
+			if (event.target.closest('#battle-controls, #unit-stats-panel, #game-status, .ui-panel')) return;
+
+			raycaster.setFromCamera(mouse, camera);
+
+			// Check unit selection
+			const unitMeshes = battleState.unitMeshes[battleState.activePlayer] || [];
+			const unitIntersects = raycaster.intersectObjects(unitMeshes);
+
+			if (unitIntersects.length > 0 && !moveMode && !targetMode) {
+			  const hitMesh = unitIntersects[0].object;
+			  selectedUnitPlayer = hitMesh.userData.unitPlayer;
+			  selectedUnitIndex = hitMesh.userData.unitIndex;
+
+			  if (selectedUnitPlayer === battleState.activePlayer) {
+				const unit = battleState.unitInstances[battleState.activePlayer][selectedUnitIndex];
+				selectUnit(unit, battleState.activePlayer);
+				triggerContextualHint('select-unit');
+				addActionToLog('Selected ' + unit.name, 'action');
+				return;
+			  }
+			}
+
+			// Check terrain click for movement
+			if (moveMode && selectedUnitIndex !== null) {
+			  const terrainIntersects = raycaster.intersectObjects(
+				terrainObjects.map(t => t.mesh)
+			  );
+
+			  let intersectPoint = null;
+			  if (terrainIntersects.length > 0) {
+				intersectPoint = terrainIntersects[0].point;
+			  } else {
+				// Click on ground
+				const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+				intersectPoint = new THREE.Vector3();
+				raycaster.ray.intersectPlane(plane, intersectPoint);
+			  }
+
+			  if (intersectPoint) {
+				const unit = battleState.unitInstances[battleState.activePlayer][selectedUnitIndex];
+				const targetPos = { x: intersectPoint.x, z: intersectPoint.z };
+
+				if (moveUnit(unit, targetPos)) {
+				  // Update mesh position
+				  battleState.unitMeshes[battleState.activePlayer][selectedUnitIndex].position.set(targetPos.x, 0.5, targetPos.z);
+				  addActionToLog(unit.name + ' moved to (' + Math.round(targetPos.x) + ', ' + Math.round(targetPos.z) + ')', 'action');
+				  triggerContextualHint('move-unit');
+				  completeMovement();
+				  moveMode = false;
+				} else {
+				  showHint('Invalid move - check range, terrain, and line of sight!');
+				}
+			  }
+			}
+
+			// Check target selection for shooting
+			if (targetMode && selectedUnitIndex !== null) {
+			  const enemyMeshes = battleState.unitMeshes[battleState.activePlayer === 1 ? 2 : 1] || [];
+			  const enemyIntersects = raycaster.intersectObjects(enemyMeshes);
+
+			  if (enemyIntersects.length > 0) {
+				const hitMesh = enemyIntersects[0].object;
+				const enemyIndex = hitMesh.userData.unitIndex;
+				const enemyPlayer = hitMesh.userData.unitPlayer;
+
+				const attacker = battleState.unitInstances[battleState.activePlayer][selectedUnitIndex];
+				const target = battleState.unitInstances[enemyPlayer][enemyIndex];
+
+				shootAtTarget(attacker, target);
+				addActionToLog(attacker.name + ' shot at ' + target.name, 'damage');
+				triggerContextualHint('shoot-phase');
+				targetMode = false;
+			  }
+			}
+		  });
+
+		  // ==========================================
+		  // UI MANAGEMENT
+		  // ==========================================
+		  let actionHistory = [];
+
+		  function selectUnit(unit, player) {
+			battleState.activeUnit = battleState.unitInstances[player].indexOf(unit);
+			const unitDef = player === 1 ? 
+			  battleState.player1Army.units[unit.index] :
+			  battleState.player2Army.units[unit.index];
+
+			displayUnitStats(unit, unitDef);
+			triggerContextualHint('select-unit');
+			debugLog('Selected ' + unit.name + ' (Player ' + player + ')');
+		  }
+
+		  function displayUnitStats(unit, unitDef) {
+			const panel = document.getElementById('unit-stats-panel');
+			const nameEl = document.getElementById('selected-unit-name');
+			const contentEl = document.getElementById('unit-stats-content');
+
+			nameEl.innerText = unit.name;
+
+			const livingModels = unit.count - unit.currentWounds.filter(w => w >= 1).length;
+			const stats = [
+			  ['Models', livingModels + '/' + unit.count],
+			  ['Movement', unitDef.movement + '"'],
+			  ['Toughness', unitDef.toughness + '+'],
+			  ['Armor Save', unitDef.save + '+'],
+			  ['Wounds', unitDef.wounds],
+			  ['Leadership', unitDef.leadership + '+'],
+			  ['Points', unitDef.points],
+			  ['Status', unit.activated ? 'Activated' : 'Ready']
+			];
+
+			contentEl.innerHTML = stats.map(s => 
+			  '<div class="unit-stat-row"><span class="unit-stat-label">' + s[0] + ':</span><span class="unit-stat-value">' + s[1] + '</span></div>'
+			).join('');
+
+			panel.classList.remove('hidden');
+		  }
+
+		  function addActionToLog(message, type = 'action') {
+			actionHistory.push({ msg: message, type: type });
+			if (actionHistory.length > 10) {
+			  actionHistory.shift();
+			}
+
+			const contentEl = document.getElementById('action-history-content');
+			contentEl.innerHTML = actionHistory.map(entry => 
+			  '<div class="action-log-entry ' + entry.type + '">' + entry.msg + '</div>'
+			).join('');
+
+			const historyPanel = document.getElementById('action-history-panel');
+			historyPanel.classList.remove('hidden');
+			contentEl.scrollTop = contentEl.scrollHeight;
+		  }
+
+		  function showBattleControls(show = true) {
+			const controls = document.getElementById('battle-controls');
+			if (show && gameState.gameStarted) {
+			  controls.style.display = 'flex';
+			} else {
+			  controls.style.display = 'none';
+			}
+		  }
+
+		  function updateControlButtonState() {
+			const btnMove = document.getElementById('btn-move-unit');
+			const btnShoot = document.getElementById('btn-shoot');
+			const btnCharge = document.getElementById('btn-charge');
+			const btnEndUnit = document.getElementById('btn-end-unit');
+			const btnEndTurn = document.getElementById('btn-end-turn');
+
+			// Only enable controls for current player
+			const isPlayerTurn = battleState.activePlayer === 1;
+
+			btnMove.disabled = !isPlayerTurn || gamePhase !== PHASE.MOVEMENT;
+			btnShoot.disabled = !isPlayerTurn || gamePhase !== PHASE.SHOOTING;
+			btnCharge.disabled = !isPlayerTurn || gamePhase !== PHASE.CHARGE;
+			btnEndUnit.disabled = !isPlayerTurn || !battleState.activeUnit;
+			btnEndTurn.disabled = !isPlayerTurn;
+
+			btnMove.classList.toggle('active', gamePhase === PHASE.MOVEMENT);
+			btnShoot.classList.toggle('active', gamePhase === PHASE.SHOOTING);
+			btnCharge.classList.toggle('active', gamePhase === PHASE.CHARGE);
+		  }
+
+		  function canUnitMove(unit, targetPos, maxDistance) {
+			// Check if unit can move to target position
+			if (!unit.position) return false;
+
+			// Distance check
+			const dx = targetPos.x - unit.position.x;
+			const dz = targetPos.z - unit.position.z;
+			const distance = Math.sqrt(dx * dx + dz * dz);
+
+			// Get unit movement from definition
+			const unitDef = battleState.activePlayer === 1 ? 
+			  battleState.player1Army.units[unit.index] :
+			  battleState.player2Army.units[unit.index];
+
+			const maxMove = unitDef.movement || 6;
+
+			if (distance > maxMove) {
+			  debugLog('Unit cannot move: distance ' + Math.round(distance) + ' exceeds movement ' + maxMove);
+			  return false;
+			}
+
+			// Collision check
+			if (checkTerrainCollision(targetPos, 1.5)) {
+			  debugLog('Unit cannot move: collision with terrain');
+			  return false;
+			}
+
+			return true;
+		  }
+
+		  function moveUnit(unit, targetPos) {
+			if (!canUnitMove(unit, targetPos, 6)) {
+			  return false;
+			}
+
+			unit.position = targetPos;
+			debugLog(unit.name + ' moved to position (' + Math.round(targetPos.x) + ', ' + Math.round(targetPos.z) + ')');
+			return true;
+		  }
+
+		  function getUnitsInRange(fromUnit, range = 20) {
+			// Find enemies in range of a unit
+			const enemyPlayer = battleState.activePlayer === 1 ? 2 : 1;
+			const targets = [];
+
+			battleState.unitInstances[enemyPlayer].forEach(enemyUnit => {
+			  if (!enemyUnit.position) return;
+
+			  const dx = enemyUnit.position.x - fromUnit.position.x;
+			  const dz = enemyUnit.position.z - fromUnit.position.z;
+			  const distance = Math.sqrt(dx * dx + dz * dz);
+
+			  if (distance <= range && hasLineOfSight(fromUnit.position, enemyUnit.position)) {
+				targets.push({
+				  unit: enemyUnit,
+				  distance: distance
+				});
+			  }
+			});
+
+			return targets;
+		  }
+
+		  function getUnitsInMeleeRange(fromUnit, range = 3) {
+			// Find enemies in close combat range
+			const enemyPlayer = battleState.activePlayer === 1 ? 2 : 1;
+			const targets = [];
+
+			battleState.unitInstances[enemyPlayer].forEach(enemyUnit => {
+			  if (!enemyUnit.position) return;
+
+			  const dx = enemyUnit.position.x - fromUnit.position.x;
+			  const dz = enemyUnit.position.z - fromUnit.position.z;
+			  const distance = Math.sqrt(dx * dx + dz * dz);
+
+			  if (distance <= range) {
+				targets.push({
+				  unit: enemyUnit,
+				  distance: distance
+				});
+			  }
+			});
+
+			return targets;
+		  }
+
+		  function canChargeUnit(unit) {
+			// Can unit end movement within 1 inch of enemy?
+			const targets = getUnitsInMeleeRange(unit, 2.5);
+			return targets.length > 0;
+		  }
+
+		  function startMovement() {
+			if (gamePhase !== PHASE.MOVEMENT) {
+			  debugLog('Not in movement phase');
+			  return;
+			}
+
+			if (battleState.activeUnit === null) {
+			  // Select first unactivated unit
+			  const unactivated = battleState.unitInstances[battleState.activePlayer].find(u => !u.activated);
+			  if (unactivated) {
+				battleState.activeUnit = battleState.unitInstances[battleState.activePlayer].indexOf(unactivated);
+				debugLog('Selected unit: ' + unactivated.name + ' for activation');
+			  }
+			}
+
+			gamePhase = PHASE.MOVEMENT;
+		  }
+
+		  function completeMovement() {
+			// Transition from movement to shooting
+			if (gamePhase === PHASE.MOVEMENT) {
+			  gamePhase = PHASE.SHOOTING;
+			  debugLog('Movement phase concluded, entering shooting phase');
+			}
+		  }
+
+		  // ==========================================
+		  // COMBAT EXPLANATION & VISUAL FEEDBACK
+		  // ==========================================
+		  function displayCombatResolution(attacker, target, combatType, result) {
+			// Show detailed combat explanation with all dice rolls
+			let explanation = '<strong>' + attacker.name + ' ' + (combatType === 'ranged' ? 'shoots' : 'fights') + ' ' + target.name + '!</strong><br>';
+			explanation += '━━━━━━━━━━━━━━━━━━━━<br>';
+
+			if (combatType === 'ranged') {
+			  explanation += '<strong>To-Hit Rolls:</strong> ' + result.hitRolls.join(', ') + ' vs BS ' + result.bs + '+ → ' + result.hits + ' hits<br>';
+			} else {
+			  explanation += '<strong>To-Hit Rolls (WS):</strong> ' + result.hitRolls.join(', ') + ' vs WS ' + result.ws + '+ → ' + result.hits + ' hits<br>';
+			}
+
+			if (result.hits > 0) {
+			  explanation += '<strong>To-Wound (S' + result.strength + ' vs T' + result.toughness + '):</strong> ' + 
+				result.woundRolls.join(', ') + ' vs ' + result.woundThreshold + '+ → ' + result.wounds + ' wounds<br>';
+			}
+
+			if (result.wounds > 0) {
+			  explanation += '<strong>Armor Saves (' + result.targetSave + '+' + (result.ap ? ' AP' + result.ap : '') + '):</strong> ' + 
+				result.saveRolls.join(', ') + ' vs ' + result.modifiedSave + '+ → ' + result.savedWounds + ' saved<br>';
+			}
+
+			if (result.damageDealt > 0) {
+			  explanation += '<span style="color: #ff6b6b;"><strong>DAMAGE: ' + result.damageDealt + ' wounds applied! ' + result.kills + ' models killed!</strong></span><br>';
+			} else if (result.wounds > 0) {
+			  explanation += '<span style="color: #51cf66;">All wounds saved! No damage.</span><br>';
+			} else {
+			  explanation += '<span style="color: #888;">No hits. Combat failed.</span><br>';
+			}
+
+			// Display in modal
+			const modal = document.createElement('div');
+			modal.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #16213e; border: 2px solid #00d4ff; border-radius: 8px; padding: 20px; max-width: 400px; color: #eaeaea; z-index: 2000; font-size: 12px; line-height: 1.8; font-family: monospace;';
+			modal.innerHTML = explanation + '<div style="margin-top: 12px; text-align: center;"><button onclick="this.parentElement.parentElement.remove()" style="padding: 8px 16px; background: #0f3460; border: 1px solid #00d4ff; color: #00d4ff; cursor: pointer; border-radius: 4px;">OK</button></div>';
+			document.body.appendChild(modal);
+
+			setTimeout(() => {
+			  if (modal.parentElement) modal.remove();
+			}, gameState.gameMode === 'tutorial' ? 8000 : 4000);
+		  }
+
+		  // ==========================================
+		  // RANGED ATTACK RESOLUTION
+		  // ==========================================
+		  function rollD6(amount = 1) {
+			let total = 0;
+			const rolls = [];
+			for (let i = 0; i < amount; i++) {
+			  const roll = Math.floor(Math.random() * 6) + 1;
+			  rolls.push(roll);
+			  total += roll;
+			}
+			return { total, rolls };
+		  }
+
+		  function resolveRangedAttack(attacker, target) {
+			// Get weapon stats from attacker unit definition
+			const attackerDef = battleState.activePlayer === 1 ?
+			  battleState.player1Army.units[attacker.index] :
+			  battleState.player2Army.units[attacker.index];
+
+			if (!attackerDef.ballisticSkill) {
+			  debugLog('Unit has no ranged weapon');
+			  return { hits: 0, wounds: 0, damageDealt: 0 };
+			}
+
+			// Calculate number of attacks
+			const livingModels = attacker.count - attacker.currentWounds.filter(w => w >= 1).length;
+			if (livingModels <= 0) {
+			  return { hits: 0, wounds: 0, damageDealt: 0 };
+			}
+
+			const totalAttacks = livingModels * (attackerDef.attacks || 1);
+
+			// To-Hit rolls
+			const ballisticSkill = attackerDef.ballisticSkill || 3;
+			const hitThreshold = 7 - ballisticSkill;
+			const hitRolls = rollD6(totalAttacks);
+			const hits = hitRolls.rolls.filter(r => r >= hitThreshold).length;
+
+			debugLog('Ranged attack: ' + totalAttacks + ' attacks, ' + hits + ' hits (BS ' + ballisticSkill + '+)');
+
+			if (hits === 0) {
+			  return { hits: 0, wounds: 0, damageDealt: 0 };
+			}
+
+			// To-Wound rolls
+			const targetDef = battleState.activePlayer === 1 ?
+			  battleState.player2Army.units[target.index] :
+			  battleState.player1Army.units[target.index];
+
+			const strength = attackerDef.strength || 4;
+			const toughness = targetDef.toughness || 3;
+
+			let woundThreshold = 4;
+			if (strength > toughness) {
+			  woundThreshold = 3;
+			}
+			if (strength >= toughness * 2) {
+			  woundThreshold = 2;
+			}
+			if (strength <= Math.floor(toughness / 2)) {
+			  woundThreshold = 6;
+			}
+
+			const woundRolls = rollD6(hits);
+			const wounds = woundRolls.rolls.filter(r => r >= woundThreshold).length;
+
+			debugLog(hits + ' to-wound rolls (S' + strength + ' vs T' + toughness + ' -> ' + woundThreshold + '+), ' + wounds + ' wounds');
+
+			if (wounds === 0) {
+			  return { hits, wounds: 0, damageDealt: 0 };
+			}
+
+			// Armor Saves
+			const targetSave = targetDef.save || 4;
+			const attackAP = attackerDef.ap || 0;
+			const modifiedSave = Math.max(7, targetSave + attackAP);
+
+			const saveRolls = rollD6(wounds);
+			const savedWounds = saveRolls.rolls.filter(r => r >= modifiedSave).length;
+			const unsavedWounds = wounds - savedWounds;
+
+			debugLog(wounds + ' attempted saves (save ' + targetSave + ', AP' + attackAP + ' -> ' + modifiedSave + '+), ' + savedWounds + ' saved');
+
+			if (unsavedWounds === 0) {
+			  return { hits, wounds, damageDealt: 0 };
+			}
+
+			// Apply damage
+			const damage = attackerDef.damage || 1;
+			let totalDamage = unsavedWounds * damage;
+
+			// Track damage on target models
+			let damageRemaining = totalDamage;
+			for (let i = 0; i < target.currentWounds.length && damageRemaining > 0; i++) {
+			  const modelWounds = targetDef.wounds || 1;
+			  if (target.currentWounds[i] < modelWounds) {
+				const canTake = modelWounds - target.currentWounds[i];
+				const applied = Math.min(damageRemaining, canTake);
+				target.currentWounds[i] += applied;
+				damageRemaining -= applied;
+			  }
+			}
+
+			  // Count kills
+			  const kills = target.currentWounds.filter(w => w >= (targetDef.wounds || 1)).length;
+			  debugLog(totalDamage + ' damage applied, ' + kills + ' models killed');
+
+			  // Update kill points
+			  if (kills > 0) {
+				battleState.killPoints[battleState.activePlayer] += kills * (targetDef.points || 0);
+			  }
+
+			  // Return detailed roll information
+			  return { 
+				hits, 
+				wounds, 
+				damageDealt: totalDamage, 
+				kills,
+				// Detailed rolls for display
+				hitRolls: hitRolls.rolls,
+				woundRolls: woundRolls.rolls,
+				saveRolls: saveRolls.rolls,
+				bs: ballisticSkill,
+				ap: attackAP,
+				strength: strength,
+				toughness: toughness,
+				woundThreshold: woundThreshold,
+				targetSave: targetSave,
+				modifiedSave: modifiedSave,
+				savedWounds: savedWounds
+			  };
+			}
+
+		  function shootAtTarget(unit, target) {
+			if (gamePhase !== PHASE.SHOOTING) {
+			  debugLog('Not in shooting phase');
+			  return;
+			}
+
+			// Check range and LOS
+			const inRange = getUnitsInRange(unit, 50);
+			if (!inRange.find(t => t.unit === target)) {
+			  debugLog('Target out of range or no line of sight');
+			  showHint('Target out of range or blocked by terrain!');
+			  return;
+			}
+
+			const result = resolveRangedAttack(unit, target);
+			displayCombatResolution(unit, target, 'ranged', result);
+			debugLog('Shooting result: ' + result.hits + ' hits, ' + result.wounds + ' wounds, ' + result.damageDealt + ' damage');
+
+			// Check for morale after casualties
+			checkUnitMorale(target);
+			checkDestroyedUnits();
+
+			// Check victory
+			const victory = checkVictoryConditions();
+			if (victory) endBattle(victory);
+		  }
+
+			// ==========================================
+			// MORALE & CASUALTIES
+			// ==========================================
+			function checkUnitMorale(unit) {
+			  // Basic morale: if unit lost 25% of models, leadership check
+			  const livingModels = unit.count - unit.currentWounds.filter(w => w >= 1).length;
+			  const lostModels = unit.count - livingModels;
+			  const lossRatio = lostModels / unit.count;
+
+			  if (lossRatio >= 0.25 && livingModels > 0) {
+				const unitDef = battleState.activePlayer === 1 ?
+				  battleState.player2Army.units[unit.index] :
+				  battleState.player1Army.units[unit.index];
+
+				const leadership = unitDef.leadership || 6;
+				const leadershipRoll = rollD6(1).total;
+
+				debugLog(unit.name + ' morale check: LD ' + leadership + ', rolled ' + leadershipRoll);
+
+				if (leadershipRoll > leadership) {
+				  // Failed morale - additional casual ties (simplified)
+				  const additionalLosses = Math.floor(lostModels / 2);
+				  if (additionalLosses > 0) {
+					let damageLeft = additionalLosses;
+					for (let i = 0; i < unit.currentWounds.length && damageLeft > 0; i++) {
+					  if (unit.currentWounds[i] < 1) {
+						unit.currentWounds[i] += damageLeft;
+						damageLeft = 0;
+					  }
+					}
+					debugLog(unit.name + ' failed morale, ' + additionalLosses + ' more models flee');
+				  }
+				}
+				  }
+				}
+
+				// ==========================================
+				// CLOSE COMBAT RESOLUTION
+				// ==========================================
+				function executeCharge(charger, chargeTarget) {
+				  // Charge moves unit closer to enemy
+				  if (!canChargeUnit(charger)) {
+					debugLog('Unit cannot charge: no enemy in range');
+					return false;
+				  }
+
+				  // Move charger toward target
+				  const dx = chargeTarget.position.x - charger.position.x;
+				  const dz = chargeTarget.position.z - charger.position.z;
+				  const distance = Math.sqrt(dx * dx + dz * dz);
+
+				  if (distance > 0) {
+					const moveDir = Math.min(3, distance); // Max charge move ~3"
+					const normalX = dx / distance;
+					const normalZ = dz / distance;
+
+					charger.position.x += normalX * moveDir;
+					charger.position.z += normalZ * moveDir;
+
+					debugLog(charger.name + ' charged ' + Math.round(moveDir) + '" toward enemy');
+				  }
+
+				  gamePhase = PHASE.FIGHT;
+				  return true;
+				}
+
+				function resolveMeleeAttack(attacker, target) {
+				  // Close combat attack
+				  const attackerDef = battleState.activePlayer === 1 ?
+					battleState.player1Army.units[attacker.index] :
+					battleState.player2Army.units[attacker.index];
+
+				  // Calculate attacks (usually 1 per model)
+				  const livingModels = attacker.count - attacker.currentWounds.filter(w => w >= 1).length;
+				  if (livingModels <= 0) {
+					return { hits: 0, wounds: 0, damageDealt: 0 };
+				  }
+
+				  const totalAttacks = livingModels * (attackerDef.meleeAttacks || 1);
+
+				  // Weapon Skill rolls (usually 3+)
+				  const weaponSkill = attackerDef.weaponSkill || 3;
+				  const hitThreshold = 7 - weaponSkill;
+				  const hitRolls = rollD6(totalAttacks);
+				  const hits = hitRolls.rolls.filter(r => r >= hitThreshold).length;
+
+				  debugLog('Melee attack: ' + totalAttacks + ' attacks, ' + hits + ' hits (WS ' + weaponSkill + '+)');
+
+				  if (hits === 0) {
+					return { hits: 0, wounds: 0, damageDealt: 0 };
+				  }
+
+				  // To-Wound
+				  const targetDef = battleState.activePlayer === 1 ?
+					battleState.player2Army.units[target.index] :
+					battleState.player1Army.units[target.index];
+
+				  const strength = attackerDef.strength || 4;
+				  const toughness = targetDef.toughness || 3;
+
+				  let woundThreshold = 4;
+				  if (strength > toughness) woundThreshold = 3;
+				  if (strength >= toughness * 2) woundThreshold = 2;
+				  if (strength <= Math.floor(toughness / 2)) woundThreshold = 6;
+
+				  const woundRolls = rollD6(hits);
+				  const wounds = woundRolls.rolls.filter(r => r >= woundThreshold).length;
+
+				  debugLog(hits + ' to-wound rolls (S' + strength + ' vs T' + toughness + '), ' + wounds + ' wounds');
+
+				  if (wounds === 0) {
+					return { hits, wounds: 0, damageDealt: 0 };
+				  }
+
+				  // Armor Saves (invulnerable saves in melee)
+				  const targetSave = targetDef.save || 4;
+				  const saveRolls = rollD6(wounds);
+				  const savedWounds = saveRolls.rolls.filter(r => r >= targetSave).length;
+				  const unsavedWounds = wounds - savedWounds;
+
+				  debugLog(wounds + ' save attempts (save ' + targetSave + '+), ' + savedWounds + ' saved');
+
+				  if (unsavedWounds === 0) {
+					return { hits, wounds, damageDealt: 0 };
+				  }
+
+				  // Apply damage
+				  const damage = attackerDef.meleeDamage || 1;
+				  let totalDamage = unsavedWounds * damage;
+
+				  let damageRemaining = totalDamage;
+				  for (let i = 0; i < target.currentWounds.length && damageRemaining > 0; i++) {
+					const modelWounds = targetDef.wounds || 1;
+					if (target.currentWounds[i] < modelWounds) {
+					  const canTake = modelWounds - target.currentWounds[i];
+					  const applied = Math.min(damageRemaining, canTake);
+					  target.currentWounds[i] += applied;
+					  damageRemaining -= applied;
+					}
+				  }
+
+						const kills = target.currentWounds.filter(w => w >= (targetDef.wounds || 1)).length;
+						debugLog(totalDamage + ' damage applied, ' + kills + ' models killed in melee');
+
+						if (kills > 0) {
+						  battleState.killPoints[battleState.activePlayer] += kills * (targetDef.points || 0);
+						}
+
+						// Return melee details for display
+						return { 
+						  hits, 
+						  wounds, 
+						  damageDealt: totalDamage, 
+						  kills,
+						  hitRolls: hitRolls.rolls,
+						  woundRolls: woundRolls.rolls,
+						  saveRolls: saveRolls.rolls,
+						  ws: weaponSkill,
+						  ap: 0, // Melee typically no AP
+						  strength: strength,
+						  toughness: toughness,
+						  woundThreshold: woundThreshold,
+						  targetSave: targetSave,
+						  modifiedSave: targetSave,
+						  savedWounds: savedWounds
+						};
+				  }
+
+				  function fightInMelee(attacker, defender) {
+					if (gamePhase !== PHASE.FIGHT) {
+					  debugLog('Not in fight phase');
+					  return;
+					}
+
+					// Attacker strikes
+					let result = resolveMeleeAttack(attacker, defender);
+					displayCombatResolution(attacker, defender, 'melee', result);
+					debugLog(attacker.name + ' attacks: ' + result.hits + ' hits, ' + result.wounds + ' wounds');
+
+					// Defender counter-attacks (simplified)
+					let counterResult = resolveMeleeAttack(defender, attacker);
+					displayCombatResolution(defender, attacker, 'melee', counterResult);
+					debugLog(defender.name + ' counter-attacks: ' + counterResult.hits + ' hits, ' + counterResult.wounds + ' wounds');
+
+					// Check morale after casualties
+					checkUnitMorale(defender);
+					checkUnitMorale(attacker);
+					checkDestroyedUnits();
+
+					// Check victory
+					const victory = checkVictoryConditions();
+					if (victory) endBattle(victory);
+				  }
+
+				// ==========================================
+				// DESTRUCTION & VICTORY
+				// ==========================================
+				function destroyUnit(unit, player) {
+				  // Permanently remove unit from battle
+				  const idx = battleState.unitInstances[player].indexOf(unit);
+				  if (idx >= 0) {
+					debugLog(unit.name + ' (Player ' + player + ') has been destroyed and removed from battle');
+					battleState.unitInstances[player].splice(idx, 1);
+					battleState.unitsKilled[player].push(unit.name);
+				  }
+				}
+
+				function checkDestroyedUnits() {
+				  // Check if any units are completely destroyed
+				  [1, 2].forEach(player => {
+					battleState.unitInstances[player].forEach(unit => {
+					  const livingModels = unit.count - unit.currentWounds.filter(w => w >= 1).length;
+					  if (livingModels <= 0 && !unit.destroyed) {
+						unit.destroyed = true;
+						destroyUnit(unit, player);
+
+						// Award kill points if not already awarded
+						const unitDef = player === 1 ? 
+						  battleState.player1Army.units[unit.index] :
+						  battleState.player2Army.units[unit.index];
+
+						const enemyPlayer = player === 1 ? 2 : 1;
+						battleState.killPoints[enemyPlayer] += (unitDef.points || 0);
+					  }
+					});
+				  });
+				}
+
+				function checkLoseCondition() {
+				  // If one side has no units, other side wins
+				  if (battleState.unitInstances[1].length === 0) {
+					return { winner: 2, reason: 'Player 1 has no units remaining!' };
+				  }
+				  if (battleState.unitInstances[2].length === 0) {
+					return { winner: 1, reason: 'Player 2 has no units remaining!' };
+				  }
+				  return null;
+				}
+
+				function checkVictoryConditions() {
+				  // Check all victory conditions
+
+				  // 1. Check if one side completely destroyed
+				  let loseCondition = checkLoseCondition();
+				  if (loseCondition) {
+					return loseCondition;
+				  }
+
+				  // 2. Check points-based victory (half enemy army points killed)
+				  const player1ArmyPoints = battleState.player1Army.points || 500;
+				  const player2ArmyPoints = battleState.player2Army.points || 500;
+
+				  const player1EnemyKills = battleState.killPoints[1] || 0;
+				  const player2EnemyKills = battleState.killPoints[2] || 0;
+
+				  if (player1EnemyKills >= player2ArmyPoints / 2) {
+					return { winner: 1, reason: 'Player 1 destroyed 50%+ of enemy army (killed ' + player1EnemyKills + '/' + player2ArmyPoints + ')' };
+				  }
+				  if (player2EnemyKills >= player1ArmyPoints / 2) {
+					return { winner: 2, reason: 'Player 2 destroyed 50%+ of enemy army (killed ' + player2EnemyKills + '/' + player1ArmyPoints + ')' };
+				  }
+
+				  // 3. Check round limit (simplified: max 5 rounds)
+				  if (battleState.round > 5) {
+					// Whoever killed more points wins
+					if (player1EnemyKills > player2EnemyKills) {
+					  return { winner: 1, reason: 'Round limit reached; Player 1 has more kill points (' + player1EnemyKills + ' vs ' + player2EnemyKills + ')' };
+					} else if (player2EnemyKills > player1EnemyKills) {
+					  return { winner: 2, reason: 'Round limit reached; Player 2 has more kill points (' + player2EnemyKills + ' vs ' + player1EnemyKills + ')' };
+					} else {
+					  return { winner: 0, reason: 'Round limit reached; Draw! Both sides tied at ' + player1EnemyKills + ' kill points' };
+					}
+				  }
+
+				  return null;
+				}
+
+				function endBattle(victoryResult) {
+				  if (!victoryResult) return;
+
+				  gameState.gameStarted = false;
+
+				  let message = '';
+				  if (victoryResult.winner === 0) {
+					message = 'BATTLE DRAW! ' + victoryResult.reason;
+				  } else {
+					const winnerName = victoryResult.winner === 1 ? gameState.playerName : 'AI';
+					message = winnerName + ' WINS! ' + victoryResult.reason;
+				  }
+
+				  debugLog('=== BATTLE END ===');
+				  debugLog(message);
+
+				  document.getElementById('game-status').innerText = message;
+				  document.getElementById('game-info').style.color = '#FFD700';
+
+				  // Show end-of-game panel
+				  setTimeout(() => {
+					if (confirm(message + '\n\nReturn to menu?')) {
+					  location.reload();
+					}
+				  }, 500);
+				}
+
+				function generateTerrain() {
+			// Clear old terrain
+			terrainObjects.forEach(obj => scene.remove(obj.mesh));
+			terrainObjects = [];
+
+			// Battlefield is 100x100, centered at (0, 0, 0)
+			const fieldSize = 100;
+
+			// Place random cover pieces (buildings, walls, etc.)
+			const numCoverPieces = 6 + Math.floor(Math.random() * 4);
+
+			for (let i = 0; i < numCoverPieces; i++) {
+			  // Random position on battlefield
+			  const x = (Math.random() - 0.5) * fieldSize * 0.8;
+			  const z = (Math.random() - 0.5) * fieldSize * 0.8;
+
+			  // Random cover type
+			  const coverType = ['building', 'rubble', 'wall'][Math.floor(Math.random() * 3)];
+
+			  let geometry;
+			  let material;
+
+			  if (coverType === 'building') {
+				geometry = new THREE.BoxGeometry(
+				  4 + Math.random() * 2, 
+				  3 + Math.random() * 2, 
+				  4 + Math.random() * 2
+				);
+				material = new THREE.MeshStandardMaterial({ 
+				  color: 0x666666 + Math.floor(Math.random() * 0x111111),
+				  roughness: 0.8
+				});
+			  } else if (coverType === 'wall') {
+				geometry = new THREE.BoxGeometry(
+				  8 + Math.random() * 4,
+				  1.5,
+				  0.5
+				);
+				material = new THREE.MeshStandardMaterial({ 
+				  color: 0x555555,
+				  roughness: 0.7
+				});
+			  } else { // rubble
+				geometry = new THREE.BoxGeometry(
+				  2 + Math.random() * 3,
+				  1 + Math.random() * 1.5,
+				  2 + Math.random() * 3
+				);
+				material = new THREE.MeshStandardMaterial({ 
+				  color: 0x444444 + Math.floor(Math.random() * 0x222222),
+				  roughness: 0.9
+				});
+			  }
+
+			  const mesh = new THREE.Mesh(geometry, material);
+			  mesh.position.set(x, 0, z);
+			  mesh.castShadow = true;
+			  mesh.receiveShadow = true;
+
+			  // Collision sphere centered on mesh
+			  const radius = Math.max(
+				geometry.parameters.width || 1,
+				geometry.parameters.height || 1,
+				geometry.parameters.depth || 1
+			  ) / 2;
+
+			  const terrainObj = {
+				mesh: mesh,
+				position: { x, z },
+				radius: radius * 1.2,
+				coverType: coverType
+			  };
+
+			  scene.add(mesh);
+			  terrainObjects.push(terrainObj);
+			}
+
+			debugLog('Terrain generated: ' + numCoverPieces + ' cover pieces placed');
+		  }
+
+		  function checkTerrainCollision(pos, radius = 2) {
+			// Check if position collides with terrain
+			for (let terrain of terrainObjects) {
+			  const dx = pos.x - terrain.position.x;
+			  const dz = pos.z - terrain.position.z;
+			  const dist = Math.sqrt(dx * dx + dz * dz);
+
+			  if (dist < radius + terrain.radius) {
+				return terrain;
+			  }
+			}
+			return null;
+		  }
+
+		  function hasLineOfSight(from, to) {
+			// Simple LOS check: no terrain blocking direct line
+			// Cast a ray from 'from' toward 'to'
+			const direction = new THREE.Vector3(to.x - from.x, 0, to.z - from.z).normalize();
+			const distance = Math.sqrt(
+			  Math.pow(to.x - from.x, 2) + Math.pow(to.z - from.z, 2)
+			);
+
+			for (let terrain of terrainObjects) {
+			  // Simple check: does terrain block the line?
+			  const terrainVec = new THREE.Vector3(terrain.position.x, 0, terrain.position.z);
+			  const fromVec = new THREE.Vector3(from.x, 0, from.z);
+
+			  // Distance from terrain center to line
+			  const lineVec = new THREE.Vector3(to.x - from.x, 0, to.z - from.z);
+			  const fromToTerrain = terrainVec.clone().sub(fromVec);
+			  const projection = fromToTerrain.dot(lineVec.normalize());
+
+			  if (projection > 0 && projection < distance) {
+				const closestPoint = fromVec.clone().add(lineVec.normalize().multiplyScalar(projection));
+				const distToTerrain = Math.sqrt(
+				  Math.pow(terrainVec.x - closestPoint.x, 2) +
+				  Math.pow(terrainVec.z - closestPoint.z, 2)
+				);
+				if (distToTerrain < terrain.radius) {
+				  return false; // Line of sight blocked
+				}
+			  }
+			}
+			return true;
+		  }
+
+		  // ==========================================
+		  // UI EVENT LISTENERS
+		  // ==========================================
+	  function debugLog(msg) {
+		const logEl = document.getElementById('debug-log');
+		if (logEl) {
+		  const entry = document.createElement('div');
+		  entry.style.marginBottom = '4px';
+		  entry.style.borderBottom = '1px solid #0f3460';
+		  entry.style.paddingBottom = '2px';
+		  const time = new Date().toLocaleTimeString();
+		  entry.innerText = `[${time}] ${msg}`;
+		  logEl.appendChild(entry);
+		  logEl.scrollTop = logEl.scrollHeight;
+		}
+	  }
+
+	  document.addEventListener('DOMContentLoaded', () => {
+		initScene();
+		debugLog('Scene initialized');
+
+		// Faction selection
+		document.querySelectorAll('.faction-button').forEach(btn => {
+		  btn.addEventListener('click', () => {
+			document.querySelectorAll('.faction-button').forEach(b => b.classList.remove('selected'));
+			btn.classList.add('selected');
+			gameState.faction = btn.dataset.faction;
+			debugLog('Faction selected: ' + gameState.faction);
+			updateFactionInfo();
+			updateStartButton();
+		  });
+		});
+
+		// Player name input
+		document.getElementById('player-name').addEventListener('input', (e) => {
+		  gameState.playerName = e.target.value.trim();
+		  updateStartButton();
+		});
+
+		// Game mode selection
+		document.querySelectorAll('input[name="game-mode"]').forEach(radio => {
+		  radio.addEventListener('change', (e) => {
+			gameState.gameMode = e.target.value;
+			debugLog('Game mode: ' + gameState.gameMode);
+		  });
+		});
+
+		// Online mode selection
+		document.querySelectorAll('input[name="online-mode"]').forEach(radio => {
+		  radio.addEventListener('change', (e) => {
+			gameState.onlineMode = e.target.value;
+			document.getElementById('room-code').style.display = e.target.value === 'online' ? 'block' : 'none';
+			debugLog('Online mode: ' + gameState.onlineMode);
+		  });
+		});
+
+		// Room code input
+		document.getElementById('room-code').addEventListener('input', (e) => {
+		  gameState.roomCode = e.target.value.trim().toUpperCase();
+		  updateStartButton();
+		});
+
+		// Start game button
+		document.getElementById('btn-start-game').addEventListener('click', startGame);
+
+		// Debug buttons
+		document.getElementById('btn-debug-toggle').addEventListener('click', () => {
+		  const panel = document.getElementById('debug-panel');
+		  panel.classList.toggle('hidden');
+		});
+
+		document.getElementById('btn-close-debug').addEventListener('click', () => {
+		  document.getElementById('debug-panel').classList.add('hidden');
+		});
+
+		document.getElementById('btn-copy-debug').addEventListener('click', () => {
+		  const text = document.getElementById('debug-log').innerText;
+		  navigator.clipboard.writeText(text);
+		  const btn = document.getElementById('btn-copy-debug');
+		  btn.innerText = 'Copied!';
+		  setTimeout(() => btn.innerText = 'Copy', 2000);
+		});
+
+		debugLog('UI initialized');
+		updateStartButton();
+
+		// Tutorial buttons
+		document.getElementById('btn-close-tutorial').addEventListener('click', closeTutorial);
+		document.getElementById('btn-tutorial-prev').addEventListener('click', () => {
+		  if (tutorialState.currentStep > 0) {
+			showTutorialStep(tutorialState.currentStep - 1);
+		  }
+		});
+		document.getElementById('btn-tutorial-next').addEventListener('click', () => {
+		  if (tutorialState.currentStep < TUTORIAL_STEPS.length - 1) {
+			showTutorialStep(tutorialState.currentStep + 1);
+		  } else {
+			closeTutorial();
+			startGame();
+		  }
+		});
+	  });
+
+	  // Battle control buttons
+	  document.getElementById('btn-move-unit').addEventListener('click', () => {
+		if (battleState.activeUnit !== null) {
+		  moveMode = true;
+		  showHint('Click on the battlefield to move the unit. Terrain blocks movement.');
+		  addActionToLog('Movement mode active - click to move', 'action');
+		}
+	  });
+
+	  document.getElementById('btn-shoot').addEventListener('click', () => {
+		if (battleState.activeUnit !== null) {
+		  targetMode = true;
+		  showHint('Click on an enemy unit to shoot. Range and line of sight must be clear.');
+		  addActionToLog('Shooting mode active - click target', 'action');
+		}
+	  });
+
+	  document.getElementById('btn-charge').addEventListener('click', () => {
+		if (battleState.activeUnit !== null) {
+		  const unit = battleState.unitInstances[battleState.activePlayer][battleState.activeUnit];
+		  const targets = getUnitsInMeleeRange(unit, 2.5);
+		  if (targets.length > 0) {
+			executeCharge(unit, targets[0].unit);
+			addActionToLog(unit.name + ' charged into combat!', 'action');
+			triggerContextualHint('melee-phase');
+		  } else {
+			showHint('No enemies in charge range (within 2.5 inches)');
+		  }
+		}
+	  });
+
+	  document.getElementById('btn-end-unit').addEventListener('click', () => {
+		if (selectedUnitIndex !== null) {
+		  endUnitActivation();
+		}
+	  });
+
+	  document.getElementById('btn-end-turn').addEventListener('click', endPlayerTurn);
+
+	function updateFactionInfo() {
+		const infoEl = document.getElementById('faction-info');
+		const factionDescriptions = {
+		  'space-marines': '<strong>Space Marines</strong><br>Disciplined soldiers with heavy armor and varied weapons. Balanced offense and defense.',
+		  'necrons': '<strong>Necrons</strong><br>Ancient Egyptian-inspired robots with advanced technology. Strong ranged attacks and durability.'
+		};
+		if (gameState.faction && factionDescriptions[gameState.faction]) {
+		  infoEl.innerHTML = factionDescriptions[gameState.faction];
+		}
+	  }
+
+	  function updateStartButton() {
+		const btn = document.getElementById('btn-start-game');
+		const isValid = gameState.playerName && gameState.faction && 
+		  (gameState.onlineMode === 'local' || gameState.roomCode);
+		btn.disabled = !isValid;
+	  }
+
+	  // ==========================================
+	  // BATTLE STATE & GAME MODE
+	  // ==========================================
+	  let battleState = {
+		round: 1,
+		player1Army: null,
+		player2Army: null,
+		activePlayer: 1, // 1 or 2
+		activeUnit: null,
+		unitsKilled: { 1: [], 2: [] },
+		killPoints: { 1: 0, 2: 0 },
+		unitInstances: { 1: [], 2: [] }, // Actual unit instances with current wounds/status
+		unitMeshes: { 1: [], 2: [] }, // 3D meshes for clicking/selection
+		battlefield: null,
+		gameMode: 'tutorial', // 'tutorial' or 'normal'
+		allowInteraction: false // Set to true during gameplay
+	  };
+
+	  function initializeBattle() {
+		// Get player's army
+		const playerFaction = gameState.faction;
+		const armyDef = SQUADS[playerFaction];
+
+		battleState.player1Army = JSON.parse(JSON.stringify(armyDef));
+
+		// Opponent faction
+		const opponentFaction = playerFaction === 'space-marines' ? 'necrons' : 'space-marines';
+		battleState.player2Army = JSON.parse(JSON.stringify(SQUADS[opponentFaction]));
+
+		// Initialize unit instances with current state
+		initializeUnitInstances();
+
+		debugLog('Battle initialized: ' + gameState.playerName + ' (' + playerFaction + ') vs AI (' + opponentFaction + ')');
+		debugLog('Round 1 started. Player 1 begins activation phase.');
+	  }
+
+	  function initializeUnitInstances() {
+		// Create instances of units with tracking for damage/status
+		[1, 2].forEach(player => {
+		  const army = player === 1 ? battleState.player1Army : battleState.player2Army;
+		  battleState.unitInstances[player] = [];
+
+		  army.units.forEach((unitDef, idx) => {
+			const unitInstance = {
+			  defId: unitDef.id,
+			  index: idx,
+			  name: unitDef.name,
+			  count: unitDef.count,
+			  currentWounds: Array(unitDef.count).fill(0), // Wounds per model
+			  activated: false,
+			  position: null, // Will be set during deployment
+			  mesh: null
+			};
+			battleState.unitInstances[player].push(unitInstance);
+		  });
+		});
+	  }
+
+	  function getRemainingModels(player, unitIdx) {
+		const unit = battleState.unitInstances[player][unitIdx];
+		if (!unit) return 0;
+		return unit.count - unit.currentWounds.filter(w => w >= 1).length;
+	  }
+
+	  function endUnitActivation() {
+		if (battleState.activeUnit !== null) {
+		  const unit = battleState.unitInstances[battleState.activePlayer][battleState.activeUnit];
+		  unit.activated = true;
+		  debugLog('Unit ' + unit.name + ' activation ended.');
+
+		  // Check if all units activated
+		  const allUnitsActivated = battleState.unitInstances[battleState.activePlayer].every(u => u.activated);
+
+		  if (allUnitsActivated) {
+			endPlayerTurn();
+		  } else {
+			battleState.activeUnit = null;
+			updateGameStatus();
+		  }
+		}
+	  }
+
+	  function endPlayerTurn() {
+		debugLog('Player ' + battleState.activePlayer + ' turn ended.');
+		battleState.activePlayer = battleState.activePlayer === 1 ? 2 : 1;
+
+		// Reset all unit activations for next player
+		battleState.unitInstances[battleState.activePlayer].forEach(u => u.activated = false);
+
+		if (battleState.activePlayer === 1) {
+		  battleState.round++;
+		  debugLog('--- ROUND ' + battleState.round + ' ---');
+		}
+
+		battleState.activeUnit = null;
+		updateGameStatus();
+	  }
+
+	  function checkVictoryConditions() {
+		// Victory is 1/2 enemy army points destroyed
+		const player1Strength = battleState.player1Army.points - (battleState.killPoints[1] || 0);
+		const player2Strength = battleState.player2Army.points - (battleState.killPoints[2] || 0);
+
+		if (player1Strength <= 0) {
+		  return { winner: 2, reason: 'Player 2 eliminated all enemy units!' };
+		}
+		if (player2Strength <= 0) {
+		  return { winner: 1, reason: 'Player 1 eliminated all enemy units!' };
+		}
+
+		return null;
+	  }
+
+	  function updateGameStatus() {
+		const player1Units = battleState.unitInstances[1].length;
+		const player2Units = battleState.unitInstances[2].length;
+
+		let status = 'Round: ' + battleState.round + ' | ';
+		status += 'Player ' + battleState.activePlayer + ' turn | ';
+		status += 'P1 Kill Pts: ' + (battleState.killPoints[1] || 0) + ' | ';
+		status += 'P2 Kill Pts: ' + (battleState.killPoints[2] || 0);
+
+		document.getElementById('game-status').innerText = status;
+		updateControlButtonState();
+		showBattleControls(true);
+	  }
+
+	  function startGame() {
+		debugLog('Starting game...');
+		gameState.gameStarted = true;
+		document.getElementById('modal-start-menu').classList.add('hidden');
+		document.getElementById('game-info').innerText = gameState.playerName + ' - ' + gameState.faction;
+		debugLog('Game started as ' + gameState.playerName + ' with ' + gameState.faction);
+
+		// Initialize battle
+		initializeBattle();
+		updateGameStatus();
+
+		// Show tutorial if enabled
+		if (gameState.gameMode === 'tutorial') {
+		  tutorialState.enabled = true;
+		  showTutorialStep(0);
+		  debugLog('Tutorial mode enabled');
+		} else {
+		  // Spawn units on battlefield
+		  spawnInitialUnits();
+		}
+	  }
+
+	  function spawnInitialUnits() {
+		// Generate terrain first
+		generateTerrain();
+
+		// Deploy units (simplified: player units on one side, opponent on other)
+		const deploymentZoneDepth = 20;
+
+		battleState.unitInstances[1].forEach((unit, idx) => {
+		  // Player 1 deploys on negative Z side
+		  unit.position = {
+			x: -20 + idx * 10 + (Math.random() - 0.5) * 5,
+			z: -40,
+			y: 0
+		  };
+		});
+
+		battleState.unitInstances[2].forEach((unit, idx) => {
+		  // Player 2 deploys on positive Z side
+		  unit.position = {
+			x: -20 + idx * 10 + (Math.random() - 0.5) * 5,
+			z: 40,
+			y: 0
+		  };
+		});
+
+		// Render units to 3D scene and enable interaction
+		renderUnits();
+		battleState.allowInteraction = true;
+		showBattleControls(true);
+		updateControlButtonState();
+
+		debugLog('Units deployed and ready for battle');
+		triggerContextualHint('select-unit');
+	  }
+
+		// Window resize handler
+	  window.addEventListener('resize', () => {
+		camera.aspect = window.innerWidth / window.innerHeight;
+		camera.updateProjectionMatrix();
+		renderer.setSize(window.innerWidth, window.innerHeight);
+	  });
+	</script>
+  </body>
+</html>
