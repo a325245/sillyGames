@@ -3,7 +3,7 @@
   <head>
 	<meta charset="UTF-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Warhammer 40K Combat Patrol 1.1</title>
+	<title>Warhammer 40K Combat Patrol a</title>
 
 	<!-- Tailwind CSS -->
 	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css">
@@ -366,6 +366,12 @@
 
   </head>
   <body>
+   <div id="startup-message" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #1a1a2e; display: flex; align-items: center; justify-content: center; z-index: 10000;">
+     <div style="text-align: center; color: #00d4ff; font-family: monospace; font-size: 16px;">
+       <div style="margin-bottom: 20px;">⏳ LOADING WH40K Combat Patrol...</div>
+       <div id="startup-status" style="color: #aaa; font-size: 12px;">Initializing scripts...</div>
+     </div>
+   </div>
 	<div id="canvas-container"></div>
 
 	<!-- UI Layer -->
@@ -480,6 +486,15 @@
 	<button id="btn-debug-toggle">🐛 Debug</button>
 
 	<script>
+	  // Immediate status update
+	  function updateStatus(msg) {
+		console.log('[STARTUP]', msg);
+		const el = document.getElementById('startup-status');
+		if (el) el.innerText = msg;
+	  }
+
+	  updateStatus('Script tag executing...');
+
 	  // ========================================================================
 	  // WARHAMMER 40K COMBAT PATROL - LEARNING GAME
 	  // ========================================================================
@@ -519,6 +534,21 @@
 	  // STARTUP & INITIALIZATION
 	  // ==========================================
 	  console.log('WH40K Combat Patrol loaded');
+	  updateStatus('Checking THREE.js...');
+
+	  if (typeof THREE === 'undefined') {
+		updateStatus('ERROR: THREE.js not loaded!');
+		console.error('THREE.js is not available!');
+	  } else {
+		console.log('THREE.js version:', THREE.REVISION);
+		updateStatus('THREE.js OK. Checking OrbitControls...');
+		if (typeof THREE.OrbitControls === 'undefined') {
+		  updateStatus('ERROR: OrbitControls not loaded!');
+		  console.error('OrbitControls not found');
+		} else {
+		  updateStatus('Initializing game state...');
+		}
+	  }
 
 	  let gameState = {
 		playerName: '',
@@ -1859,6 +1889,7 @@
 
 	  document.addEventListener('DOMContentLoaded', () => {
 		console.log('=== DOMContentLoaded START ===');
+		updateStatus('DOM ready, initializing 3D scene...');
 		console.log('Document ready. DOM elements to check:');
 		console.log('  #canvas-container:', document.getElementById('canvas-container'));
 		console.log('  #modal-start-menu:', document.getElementById('modal-start-menu'));
@@ -1866,8 +1897,16 @@
 		console.log('  Body element:', document.body);
 
 		console.log('Calling initScene()...');
+		updateStatus('Creating Three.js scene...');
 		initScene();
 		debugLog('Scene initialized');
+
+		// Hide loading message after scene is set up
+		setTimeout(() => {
+		  const startup = document.getElementById('startup-message');
+		  if (startup) startup.style.display = 'none';
+		  updateStatus('Ready!');
+		}, 500);
 
 		// Faction selection
 		document.querySelectorAll('.faction-button').forEach(btn => {
