@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rollin' Bones</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #030712;
+            color: #f3f4f6;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        .font-cinzel {
+            font-family: 'Cinzel', serif;
+        }
+
+        /* Custom Scrollbar for sidebar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b0f19;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1f2937;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #374151;
+        }
+
+        canvas {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col md:flex-row bg-slate-950 text-slate-100">
+
+    <!-- MAIN GAME CANVAS & TOWER VIEWPORT -->
+    <div class="relative flex-1 h-full bg-slate-950 flex flex-col items-center justify-center overflow-hidden border-r border-slate-800">
+        
+        <!-- Header Info Overlay -->
+        <div class="absolute top-4 left-4 right-4 flex justify-between items-center z-10 pointer-events-none">
+            <!-- Bone Bank -->
+            <div class="bg-slate-900/90 backdrop-blur border border-slate-800 px-4 py-2.5 rounded-xl shadow-xl pointer-events-auto">
+                <div class="text-[10px] text-amber-400 font-bold uppercase tracking-widest">Bone Vault</div>
+                <div class="text-2xl font-extrabold text-amber-50 font-cinzel flex items-center gap-2">
+                    <span id="bone-count">0</span> <span class="text-xs text-amber-400 font-sans">Bones</span>
+                </div>
+                <div class="text-xs text-emerald-400 font-semibold" id="bps-counter">+0.0 Bones/sec</div>
+            </div>
+
+            <!-- Fast Zone Nav Jumpers -->
+            <div class="hidden sm:flex items-center gap-1.5 bg-slate-900/90 border border-slate-800 p-1.5 rounded-xl shadow-xl pointer-events-auto">
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2">Jump Zone:</span>
+                <button onclick="jumpToZone(0)" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-950/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-800/60 transition">1: Entrance</button>
+                <button onclick="jumpToZone(1)" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-950/80 hover:bg-amber-800 text-amber-200 border border-amber-800/60 transition">2: Foundry</button>
+                <button onclick="jumpToZone(2)" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-indigo-950/80 hover:bg-indigo-800 text-indigo-200 border border-indigo-800/60 transition">3: Depths</button>
+                <button onclick="jumpToZone(3)" class="px-2.5 py-1 text-xs font-bold rounded-lg bg-rose-950/80 hover:bg-rose-800 text-rose-200 border border-rose-800/60 transition">4: Catacombs</button>
+            </div>
+        </div>
+
+        <!-- Scroll / Controls Guide -->
+        <div class="absolute bottom-4 left-4 z-10 pointer-events-none bg-slate-900/80 border border-slate-800 px-3 py-1.5 rounded-lg text-xs text-slate-400 flex items-center gap-2">
+            <svg class="w-4 h-4 text-amber-400 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 13l-7 7-7-7m14-8l-7 7-7-7"></path>
+            </svg>
+            <span>Click chamber to drop bone • Drag/Scroll to view tower</span>
+        </div>
+
+        <!-- Canvas -->
+        <canvas id="game-canvas" class="w-full h-full cursor-grab active:cursor-grabbing"></canvas>
+
+        <!-- Ceiling Drop Zone Visual Overlay Indicator -->
+        <div id="drop-zone-indicator" class="absolute top-0 left-0 right-0 h-16 border-b border-dashed border-amber-500/30 pointer-events-none flex items-center justify-center bg-gradient-to-b from-amber-500/10 to-transparent">
+            <span class="text-[11px] tracking-widest uppercase text-amber-300/50 font-bold font-cinzel">Vault Drop Chamber</span>
+        </div>
+    </div>
+
+    <!-- UPGRADE & CONTROL SIDEBAR -->
+    <div class="w-full md:w-80 lg:w-96 h-2/5 md:h-full bg-slate-950 border-t md:border-t-0 md:border-l border-slate-800 flex flex-col z-20 shadow-2xl">
+        
+        <!-- Sidebar Header -->
+        <div class="p-4 border-b border-slate-800 bg-slate-900/70">
+            <h1 class="text-2xl font-black font-cinzel text-amber-200 flex items-center gap-2 tracking-wide">
+                ☠️ Rollin' Bones
+            </h1>
+            <p class="text-xs text-slate-400 mt-0.5">Harvest bone energy across the 4 crypt zones</p>
+        </div>
+
+        <!-- Upgrades List -->
+        <div class="flex-1 overflow-y-auto p-4 space-y-3" id="upgrades-container">
+            <!-- Injected by JS -->
+        </div>
+
+        <!-- Stats Footer -->
+        <div class="p-4 border-t border-slate-800 bg-slate-900/50 text-xs text-slate-400 flex justify-between items-center">
+            <div>Active Bones: <span id="stat-active" class="text-amber-200 font-semibold">0</span></div>
+            <button id="reset-btn" class="text-rose-400 hover:text-rose-300 underline text-[10px]">Reset Tower</button>
+        </div>
+    </div>
+
+    <!-- GAME ENGINE SCRIPT -->
+    <script>
+        // --- GAME STATE ---
+        const state = {
+            bones: 20,
+            totalBonesEarned: 20,
+            totalDropped: 0,
+            autoDropRate: 0, // Bones per second
+            autoDropTimer: 0,
+            boneValueMult: 1.0,
+            
+            // Unlocked bone types
+            unlockedBones: {
+                femur: true,
+                rib: false,
+                pelvis: false,
+                skull: false
+            },
+
+            // Moving hazard modifiers
+            blockerSizeMult: 1.0,
+            blockerSpeedMult: 1.0,
+
+            // Obstacles unlocked per zone (index 0..3)
+            zoneObstacles: [
+                { pegs: 4, bumpers: 0, spinners: 0 }, // Zone 0: Entrance
+                { pegs: 0, bumpers: 0, spinners: 0 }, // Zone 1: Foundry
+                { pegs: 0, bumpers: 0, spinners: 0 }, // Zone 2: Depths
+                { pegs: 0, bumpers: 0, spinners: 0 }  // Zone 3: Catacombs
+            ]
+        };
+
+        // --- ZONE TOWER ARCHITECTURE ---
+        const ZONE_HEIGHT = 680;
+        const ZONES = [
+            {
+                id: 0,
+                name: "Crypt Entrance",
+                subtitle: "Standard Wooden Pegs & Simple Obstacles",
+                bgGradTop: "#0f172a",
+                bgGradBot: "#020617",
+                slotColor: "rgba(51, 65, 85, 0.3)",
+                hazardType: "horizontalBaton",
+                hazardColor: "#10b981"
+            },
+            {
+                id: 1,
+                name: "Bone Foundry",
+                subtitle: "High-Bounce Rubber Shields & Sweeping Pendulums",
+                bgGradTop: "#1e1b4b",
+                bgGradBot: "#020617",
+                slotColor: "rgba(99, 102, 241, 0.3)",
+                hazardType: "pendulum",
+                hazardColor: "#f59e0b"
+            },
+            {
+                id: 2,
+                name: "Skeletal Depths",
+                subtitle: "Golden Chime Bells & Heavy Rotating Barriers",
+                bgGradTop: "#14532d",
+                bgGradBot: "#020617",
+                slotColor: "rgba(34, 197, 94, 0.3)",
+                hazardType: "cogBar",
+                hazardColor: "#6366f1"
+            },
+            {
+                id: 3,
+                name: "Eternal Catacombs",
+                subtitle: "Multipliers, Fast Deflectors & Chaos Sliders",
+                bgGradTop: "#4c0519",
+                bgGradBot: "#020617",
+                slotColor: "rgba(244, 63, 94, 0.3)",
+                hazardType: "sweeper",
+                hazardColor: "#f43f5e"
+            }
+        ];
+
+        // Grid Slots Generation
+        const SLOT_ROWS_PER_ZONE = 5;
+        const SLOT_COLS = 4;
+        const towerSlots = []; // All fixed slots across 4 zones
+
+        function initSlots() {
+            towerSlots.length = 0;
+            const topMargin = 160;
+
+            for (let z = 0; z < 4; z++) {
+                const zoneStartY = topMargin + z * ZONE_HEIGHT;
+                
+                for (let r = 0; r < SLOT_ROWS_PER_ZONE; r++) {
+                    const rowY = zoneStartY + 80 + r * 105;
+                    const isStaggered = r % 2 === 1;
+                    const cols = isStaggered ? SLOT_COLS - 1 : SLOT_COLS;
+                    
+                    for (let c = 0; c < cols; c++) {
+                        towerSlots.push({
+                            zoneId: z,
+                            row: r,
+                            col: c,
+                            x: 0, // Calculated dynamically on canvas resize
+                            y: rowY,
+                            relX: (c + (isStaggered ? 1 : 0.5)) / (SLOT_COLS),
+                            type: null,
+                            instance: null
+                        });
+                    }
+                }
+            }
+        }
+        initSlots();
+
+        // --- UPGRADE DEFINITIONS ---
+        const upgrades = [
+            {
+                id: 'autoDrop',
+                name: 'Auto-Spooler',
+                desc: 'Automatically drops bones from the vault ceiling.',
+                baseCost: 20,
+                costMult: 1.45,
+                level: 0,
+                onPurchase: () => state.autoDropRate += 0.5
+            },
+            {
+                id: 'zone0_pegs',
+                name: 'Entrance Pegs (Zone 1)',
+                desc: 'Add scoring pegs (+2 Bones) to Crypt Entrance.',
+                baseCost: 10,
+                costMult: 1.35,
+                level: 0,
+                onPurchase: () => {
+                    state.zoneObstacles[0].pegs++;
+                    assignSlotObstacles();
+                }
+            },
+            {
+                id: 'zone1_bumpers',
+                name: 'Foundry Bumpers (Zone 2)',
+                desc: 'Add bouncy bumpers (+10 Bones) to Bone Foundry.',
+                baseCost: 65,
+                costMult: 1.45,
+                level: 0,
+                onPurchase: () => {
+                    state.zoneObstacles[1].bumpers++;
+                    assignSlotObstacles();
+                }
+            },
+            {
+                id: 'zone2_spinners',
+                name: 'Depths Spinners (Zone 3)',
+                desc: 'Add golden chimes (+28 Bones) to Skeletal Depths.',
+                baseCost: 250,
+                costMult: 1.5,
+                level: 0,
+                onPurchase: () => {
+                    state.zoneObstacles[2].spinners++;
+                    assignSlotObstacles();
+                }
+            },
+            {
+                id: 'zone3_catacomb',
+                name: 'Catacomb Boosters (Zone 4)',
+                desc: 'Add high-tier bumpers (+75 Bones) to Catacombs.',
+                baseCost: 800,
+                costMult: 1.6,
+                level: 0,
+                onPurchase: () => {
+                    state.zoneObstacles[3].bumpers++;
+                    assignSlotObstacles();
+                }
+            },
+            {
+                id: 'shrinkBlockers',
+                name: 'Trim Hazard Blockers',
+                desc: 'Shrinks all non-scoring moving deflectors by 20%.',
+                baseCost: 90,
+                costMult: 1.8,
+                level: 0,
+                onPurchase: () => state.blockerSizeMult *= 0.8
+            },
+            {
+                id: 'tuneBlockerSpeed',
+                name: 'Hazard Speed Control',
+                desc: 'Accelerates moving deflectors by +25% speed.',
+                baseCost: 120,
+                costMult: 1.7,
+                level: 0,
+                onPurchase: () => state.blockerSpeedMult *= 1.25
+            },
+            {
+                id: 'unlockRib',
+                name: 'Unlock Rib Arc',
+                desc: 'Unlocks curved rib bones (3x reward value).',
+                baseCost: 45,
+                costMult: 1,
+                maxLevel: 1,
+                level: 0,
+                onPurchase: () => state.unlockedBones.rib = true
+            },
+            {
+                id: 'unlockPelvis',
+                name: 'Unlock Pelvic Bone',
+                desc: 'Unlocks wide pelvic bones (7x reward value).',
+                baseCost: 220,
+                costMult: 1,
+                maxLevel: 1,
+                level: 0,
+                onPurchase: () => state.unlockedBones.pelvis = true
+            },
+            {
+                id: 'unlockSkull',
+                name: 'Unlock Skulls',
+                desc: 'Unlocks dense heavy skulls (18x reward value).',
+                baseCost: 950,
+                costMult: 1,
+                maxLevel: 1,
+                level: 0,
+                onPurchase: () => state.unlockedBones.skull = true
+            },
+            {
+                id: 'polishBones',
+                name: 'Bone Polish',
+                desc: 'Permanently increases all bone values by +50%.',
+                baseCost: 150,
+                costMult: 1.75,
+                level: 0,
+                onPurchase: () => state.boneValueMult *= 1.5
+            }
+        ];
+
+        // --- CANVAS ENGINE & CAMERA ---
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        let width = 0, height = 0;
+
+        let cameraY = 0;
+        let isDragging = false;
+        let lastDragY = 0;
+
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            width = rect.width;
+            height = rect.height;
+            canvas.width = width;
+            canvas.height = height;
+
+            // Recalculate slot X positions
+            for (const slot of towerSlots) {
+                slot.x = slot.relX * width;
+            }
+            assignSlotObstacles();
+            repositionCollectors();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        function jumpToZone(zoneIndex) {
+            const topMargin = 160;
+            const targetY = topMargin + zoneIndex * ZONE_HEIGHT - 60;
+            const maxScroll = Math.max(0, topMargin + 4 * ZONE_HEIGHT + 140 - height);
+            cameraY = Math.max(0, Math.min(targetY, maxScroll));
+        }
+
+        // --- OBSTACLE PLACEMENT IN SLOTS ---
+        function assignSlotObstacles() {
+            for (let z = 0; z < 4; z++) {
+                const zSlots = towerSlots.filter(s => s.zoneId === z);
+                let idx = 0;
+
+                const zData = state.zoneObstacles[z];
+
+                // Assign Pegs
+                for (let i = 0; i < zData.pegs && idx < zSlots.length; i++, idx++) {
+                    zSlots[idx].type = 'peg';
+                    if (!zSlots[idx].instance || zSlots[idx].instance.type !== 'peg') {
+                        zSlots[idx].instance = new Peg(zSlots[idx].x, zSlots[idx].y);
+                    }
+                }
+
+                // Assign Bumpers
+                for (let i = 0; i < zData.bumpers && idx < zSlots.length; i++, idx++) {
+                    zSlots[idx].type = 'bumper';
+                    if (!zSlots[idx].instance || zSlots[idx].instance.type !== 'bumper') {
+                        zSlots[idx].instance = new Bumper(zSlots[idx].x, zSlots[idx].y);
+                    }
+                }
+
+                // Assign Spinners / Bells
+                for (let i = 0; i < zData.spinners && idx < zSlots.length; i++, idx++) {
+                    zSlots[idx].type = 'spinner';
+                    if (!zSlots[idx].instance || zSlots[idx].instance.type !== 'spinner') {
+                        zSlots[idx].instance = new Bell(zSlots[idx].x, zSlots[idx].y);
+                    }
+                }
+
+                // Empty remaining slots
+                for (let i = idx; i < zSlots.length; i++) {
+                    zSlots[i].type = null;
+                    zSlots[i].instance = null;
+                }
+            }
+        }
+
+        // --- PHYSICS CONSTANTS & BONE DEFINITIONS ---
+        const GRAVITY = 0.15; // Slow, readable fall speed
+        const AIR_DRAG = 0.992;
+        const MAX_VELOCITY = 7.0;
+
+        const bonesList = [];
+        const hazardsList = [];
+        const collectorsList = [];
+        const particlesList = [];
+        const floatingTextsList = [];
+
+        // All bones rendered in ivory/bone-white (#f8f1e5 / #ffffff) with neat dark stroke
+        const BONE_TYPES = {
+            femur: {
+                name: 'Femur',
+                radius: 12,
+                mass: 1.0,
+                bounce: 0.5,
+                baseValue: 1,
+                draw: (ctx) => {
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 1.8;
+                    ctx.fillStyle = '#f8f1e5';
+
+                    // Shaft
+                    ctx.beginPath();
+                    ctx.rect(-9, -2.5, 18, 5);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Knuckles
+                    const drawKnuckle = (cx, cy) => {
+                        ctx.beginPath();
+                        ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.stroke();
+                    };
+                    drawKnuckle(-9, -3);
+                    drawKnuckle(-9, 3);
+                    drawKnuckle(9, -3);
+                    drawKnuckle(9, 3);
+                }
+            },
+            rib: {
+                name: 'Rib Arc',
+                radius: 14,
+                mass: 0.85,
+                bounce: 0.65,
+                baseValue: 3,
+                draw: (ctx) => {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 11, 0.2, Math.PI - 0.2);
+                    ctx.lineWidth = 4.5;
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineCap = 'round';
+                    ctx.stroke();
+
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 11, 0.2, Math.PI - 0.2);
+                    ctx.lineWidth = 2.5;
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.stroke();
+                }
+            },
+            pelvis: {
+                name: 'Pelvis',
+                radius: 17,
+                mass: 1.2,
+                bounce: 0.4,
+                baseValue: 7,
+                draw: (ctx) => {
+                    ctx.fillStyle = '#f8f1e5';
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 1.8;
+
+                    // Redesigned Bone-White Pelvis shape
+                    ctx.beginPath();
+                    ctx.moveTo(-14, -6);
+                    ctx.bezierCurveTo(-8, -12, 8, -12, 14, -6);
+                    ctx.bezierCurveTo(16, 2, 10, 10, 4, 12);
+                    ctx.lineTo(0, 14);
+                    ctx.lineTo(-4, 12);
+                    ctx.bezierCurveTo(-10, 10, -16, 2, -14, -6);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Pelvic Socket voids
+                    ctx.fillStyle = '#0f172a';
+                    ctx.beginPath();
+                    ctx.arc(-5, -1, 3, 0, Math.PI * 2);
+                    ctx.arc(5, -1, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            },
+            skull: {
+                name: 'Skull',
+                radius: 19,
+                mass: 1.5,
+                bounce: 0.3,
+                baseValue: 18,
+                draw: (ctx) => {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.strokeStyle = '#0f172a';
+                    ctx.lineWidth = 1.8;
+
+                    ctx.beginPath();
+                    ctx.arc(0, -2, 14, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Jaw
+                    ctx.beginPath();
+                    ctx.rect(-6, 6, 12, 6);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Eye sockets
+                    ctx.fillStyle = '#090d16';
+                    ctx.beginPath();
+                    ctx.arc(-5, -2, 3.5, 0, Math.PI * 2);
+                    ctx.arc(5, -2, 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        };
+
+        // --- ENTITY CLASSES ---
+        class Bone {
+            constructor(x, y, typeKey) {
+                this.x = x;
+                this.y = y;
+                this.typeKey = typeKey;
+                const config = BONE_TYPES[typeKey];
+                this.radius = config.radius;
+                this.mass = config.mass;
+                this.bounce = config.bounce;
+                this.baseValue = config.baseValue;
+
+                this.vx = (Math.random() - 0.5) * 2.2;
+                this.vy = Math.random() * 0.5;
+                this.angle = Math.random() * Math.PI * 2;
+                this.vRot = (Math.random() - 0.5) * 0.08;
+            }
+
+            update() {
+                this.vy += GRAVITY * this.mass;
+                this.vx *= AIR_DRAG;
+                this.vy *= AIR_DRAG;
+
+                if (this.vy > MAX_VELOCITY) this.vy = MAX_VELOCITY;
+
+                this.x += this.vx;
+                this.y += this.vy;
+                this.angle += this.vRot;
+
+                // Wall boundaries
+                if (this.x - this.radius < 0) {
+                    this.x = this.radius;
+                    this.vx *= -this.bounce;
+                } else if (this.x + this.radius > width) {
+                    this.x = width - this.radius;
+                    this.vx *= -this.bounce;
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y - cameraY);
+                ctx.rotate(this.angle);
+                BONE_TYPES[this.typeKey].draw(ctx);
+                ctx.restore();
+            }
+        }
+
+        class Peg {
+            constructor(x, y) {
+                this.type = 'peg';
+                this.x = x;
+                this.y = y;
+                this.radius = 7;
+                this.value = 2;
+                this.pulse = 0;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - cameraY, this.radius + this.pulse, 0, Math.PI * 2);
+                ctx.fillStyle = '#10b981';
+                ctx.shadowColor = '#34d399';
+                ctx.shadowBlur = 6 + this.pulse * 4;
+                ctx.fill();
+                ctx.restore();
+                if (this.pulse > 0) this.pulse *= 0.85;
+            }
+        }
+
+        class Bumper {
+            constructor(x, y) {
+                this.type = 'bumper';
+                this.x = x;
+                this.y = y;
+                this.radius = 17;
+                this.value = 10;
+                this.pulse = 0;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - cameraY, this.radius + this.pulse, 0, Math.PI * 2);
+                ctx.fillStyle = '#8b5cf6';
+                ctx.shadowColor = '#a78bfa';
+                ctx.shadowBlur = 10 + this.pulse * 6;
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - cameraY, (this.radius * 0.5) + this.pulse, 0, Math.PI * 2);
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+                ctx.restore();
+                if (this.pulse > 0) this.pulse *= 0.88;
+            }
+        }
+
+        class Bell {
+            constructor(x, y) {
+                this.type = 'spinner';
+                this.x = x;
+                this.y = y;
+                this.radius = 21;
+                this.value = 28;
+                this.pulse = 0;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(this.x, this.y - cameraY, this.radius + this.pulse, 0, Math.PI * 2);
+                ctx.fillStyle = '#f59e0b';
+                ctx.shadowColor = '#fbbf24';
+                ctx.shadowBlur = 14 + this.pulse * 8;
+                ctx.fill();
+
+                ctx.fillStyle = '#78350f';
+                ctx.font = 'bold 12px Cinzel';
+                ctx.textAlign = 'center';
+                ctx.fillText('🔔', this.x, this.y - cameraY + 4);
+                ctx.restore();
+                if (this.pulse > 0) this.pulse *= 0.9;
+            }
+        }
+
+        // --- MOVING NON-SCORING BLOCKERS / HAZARDS ---
+        class HazardBlocker {
+            constructor(zoneId, type, yOffset) {
+                this.zoneId = zoneId;
+                this.type = type;
+                this.yOffset = yOffset;
+                this.angle = 0;
+                this.timer = Math.random() * 100;
+            }
+
+            getY() {
+                return 160 + this.zoneId * ZONE_HEIGHT + this.yOffset;
+            }
+
+            update(dt) {
+                this.timer += dt * state.blockerSpeedMult;
+                this.angle += dt * 2.5 * state.blockerSpeedMult;
+            }
+
+            getCollisionCapsule() {
+                const y = this.getY();
+                const baseWidth = width * 0.28 * state.blockerSizeMult;
+
+                if (this.type === 'horizontalBaton') {
+                    const cx = width / 2 + Math.sin(this.timer * 1.5) * (width * 0.25);
+                    return { x: cx, y: y, radius: 10 * state.blockerSizeMult, width: baseWidth };
+                } else if (this.type === 'pendulum') {
+                    const cx = width / 2 + Math.sin(this.timer * 2.0) * (width * 0.32);
+                    return { x: cx, y: y + 20, radius: 18 * state.blockerSizeMult, width: 0 };
+                } else if (this.type === 'cogBar') {
+                    return { x: width / 2, y: y, radius: 12 * state.blockerSizeMult, width: baseWidth, angle: this.angle };
+                } else {
+                    // Sweeper
+                    const cx = width / 2 + Math.cos(this.timer * 1.8) * (width * 0.3);
+                    return { x: cx, y: y, radius: 14 * state.blockerSizeMult, width: baseWidth * 0.8 };
+                }
+            }
+
+            draw() {
+                const y = this.getY() - cameraY;
+                if (y < -100 || y > height + 100) return;
+
+                const cap = this.getCollisionCapsule();
+                const zDef = ZONES[this.zoneId];
+
+                ctx.save();
+                ctx.fillStyle = zDef.hazardColor;
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.shadowColor = zDef.hazardColor;
+                ctx.shadowBlur = 10;
+
+                if (cap.width > 0) {
+                    ctx.translate(cap.x, y);
+                    if (cap.angle) ctx.rotate(cap.angle);
+                    ctx.beginPath();
+                    ctx.roundRect(-cap.width / 2, -cap.radius, cap.width, cap.radius * 2, cap.radius);
+                    ctx.fill();
+                    ctx.stroke();
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(cap.x, y, cap.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+        }
+
+        function initHazards() {
+            hazardsList.length = 0;
+            // 2 moving hazards per zone
+            for (let z = 0; z < 4; z++) {
+                hazardsList.push(new HazardBlocker(z, ZONES[z].hazardType, 220));
+                hazardsList.push(new HazardBlocker(z, ZONES[z].hazardType, 460));
+            }
+        }
+        initHazards();
+
+        // --- BOTTOM COLLECTORS ---
+        class Collector {
+            constructor(x, y, w, h, multiplier) {
+                this.x = x;
+                this.y = y;
+                this.w = w;
+                this.h = h;
+                this.multiplier = multiplier;
+            }
+
+            draw() {
+                const screenY = this.y - cameraY;
+                if (screenY < -50 || screenY > height + 50) return;
+
+                ctx.save();
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+                ctx.strokeStyle = '#fbbf24';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(this.x, screenY, this.w, this.h, 10);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#fef08a';
+                ctx.font = 'bold 11px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText(`${this.multiplier}x Bones`, this.x + this.w / 2, screenY + this.h / 2 + 4);
+                ctx.restore();
+            }
+        }
+
+        function repositionCollectors() {
+            collectorsList.length = 0;
+            const towerBottomY = 160 + 4 * ZONE_HEIGHT + 40;
+            const colWidth = Math.min(110, (width - 40) / 3);
+            const gap = (width - colWidth * 3) / 4;
+            const colHeight = 36;
+
+            collectorsList.push(new Collector(gap, towerBottomY, colWidth, colHeight, 2.0));
+            collectorsList.push(new Collector(gap * 2 + colWidth, towerBottomY, colWidth, colHeight, 5.0));
+            collectorsList.push(new Collector(gap * 3 + colWidth * 2, towerBottomY, colWidth, colHeight, 2.0));
+        }
+
+        // --- BONE-TO-BONE RIGID BODY COLLISION RESOLUTION ---
+        function resolveBoneToBoneCollisions() {
+            for (let i = 0; i < bonesList.length; i++) {
+                for (let j = i + 1; j < bonesList.length; j++) {
+                    const b1 = bonesList[i];
+                    const b2 = bonesList[j];
+
+                    const dx = b2.x - b1.x;
+                    const dy = b2.y - b1.y;
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = b1.radius + b2.radius;
+
+                    if (dist < minDist && dist > 0.0001) {
+                        const nx = dx / dist;
+                        const ny = dy / dist;
+
+                        // Separate overlapping bones
+                        const overlap = 0.5 * (minDist - dist);
+                        b1.x -= nx * overlap;
+                        b1.y -= ny * overlap;
+                        b2.x += nx * overlap;
+                        b2.y += ny * overlap;
+
+                        // Elastic momentum bounce exchange
+                        const kx = b1.vx - b2.vx;
+                        const ky = b1.vy - b2.vy;
+                        const p = 2 * (nx * kx + ny * ky) / (b1.mass + b2.mass);
+
+                        b1.vx -= p * b2.mass * nx;
+                        b1.vy -= p * b2.mass * ny;
+                        b2.vx += p * b1.mass * nx;
+                        b2.vy += p * b1.mass * ny;
+
+                        // Micro rotation impulse on bump
+                        b1.vRot = (Math.random() - 0.5) * 0.1;
+                        b2.vRot = (Math.random() - 0.5) * 0.1;
+                    }
+                }
+            }
+        }
+
+        // --- GENERAL COLLISION HANDLER ---
+        function resolveWorldCollisions() {
+            for (let i = bonesList.length - 1; i >= 0; i--) {
+                const b = bonesList[i];
+
+                // 1. Static Obstacle Slots
+                for (const slot of towerSlots) {
+                    if (!slot.instance) continue;
+                    const obstacle = slot.instance;
+
+                    const dx = b.x - obstacle.x;
+                    const dy = b.y - obstacle.y;
+                    const dist = Math.hypot(dx, dy);
+                    const minDist = b.radius + obstacle.radius;
+
+                    if (dist < minDist) {
+                        const nx = dx / (dist || 1);
+                        const ny = dy / (dist || 1);
+
+                        b.x = obstacle.x + nx * minDist;
+                        b.y = obstacle.y + ny * minDist;
+
+                        let force = 4.5;
+                        if (obstacle.type === 'bumper') force = 8.5;
+                        if (obstacle.type === 'spinner') force = 10.5;
+
+                        b.vx = nx * force;
+                        b.vy = ny * force;
+
+                        obstacle.pulse = 5;
+                        createParticles(obstacle.x, obstacle.y, obstacle.type === 'peg' ? '#34d399' : obstacle.type === 'bumper' ? '#a78bfa' : '#fbbf24');
+                        addBones(obstacle.value * b.baseValue, obstacle.x, obstacle.y);
+                    }
+                }
+
+                // 2. Moving Hazard Blockers (Non-Scoring)
+                for (const hazard of hazardsList) {
+                    const cap = hazard.getCollisionCapsule();
+                    const hy = hazard.getY();
+
+                    if (cap.width > 0) {
+                        // Box/Capsule Blocker collision
+                        const halfW = cap.width / 2;
+                        const clampX = Math.max(cap.x - halfW, Math.min(b.x, cap.x + halfW));
+                        const dx = b.x - clampX;
+                        const dy = b.y - hy;
+                        const dist = Math.hypot(dx, dy);
+
+                        if (dist < b.radius + cap.radius) {
+                            const ny = dy / (dist || 1);
+                            b.y = hy + ny * (b.radius + cap.radius);
+                            b.vy = -b.vy * 0.8 + (Math.random() - 0.5) * 2;
+                            b.vx += (Math.random() - 0.5) * 3;
+                            createParticles(b.x, b.y, '#94a3b8', 3);
+                        }
+                    } else {
+                        // Sphere Pendulum Blocker collision
+                        const dx = b.x - cap.x;
+                        const dy = b.y - cap.y;
+                        const dist = Math.hypot(dx, dy);
+                        const minDist = b.radius + cap.radius;
+
+                        if (dist < minDist) {
+                            const nx = dx / (dist || 1);
+                            const ny = dy / (dist || 1);
+                            b.x = cap.x + nx * minDist;
+                            b.y = cap.y + ny * minDist;
+                            b.vx = nx * 7.0;
+                            b.vy = ny * 7.0;
+                            createParticles(b.x, b.y, '#94a3b8', 3);
+                        }
+                    }
+                }
+
+                // 3. Bottom Zone Collectors
+                for (const col of collectorsList) {
+                    if (b.x >= col.x && b.x <= col.x + col.w &&
+                        b.y + b.radius >= col.y && b.y - b.radius <= col.y + col.h) {
+                        
+                        const bonusValue = Math.round(10 * b.baseValue * col.multiplier);
+                        addBones(bonusValue, b.x, col.y);
+                        createParticles(b.x, col.y, '#fef08a', 12);
+                        bonesList.splice(i, 1);
+                        break;
+                    }
+                }
+
+                // Despawn Floor limit
+                const maxFloor = 160 + 4 * ZONE_HEIGHT + 140;
+                if (b.y > maxFloor) {
+                    bonesList.splice(i, 1);
+                }
+            }
+        }
+
+        // --- PARTICLES & FLOATING TEXTS ---
+        function createParticles(x, y, color, count = 5) {
+            for (let i = 0; i < count; i++) {
+                particlesList.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 4,
+                    vy: (Math.random() - 0.5) * 4,
+                    radius: Math.random() * 2.5 + 1,
+                    color,
+                    life: 1.0
+                });
+            }
+        }
+
+        function createFloatingText(x, y, text, color = '#fef08a') {
+            floatingTextsList.push({
+                x, y, text, color, life: 1.0, vy: -1.2
+            });
+        }
+
+        // --- BONE SPAWNING & CURRENCY ---
+        function dropBone(x = null) {
+            const spawnX = x !== null ? x : 40 + Math.random() * (width - 80);
+            const spawnY = 40;
+
+            const available = [];
+            if (state.unlockedBones.femur) available.push('femur');
+            if (state.unlockedBones.rib) available.push('rib');
+            if (state.unlockedBones.pelvis) available.push('pelvis');
+            if (state.unlockedBones.skull) available.push('skull');
+
+            const type = available[Math.floor(Math.random() * available.length)];
+            bonesList.push(new Bone(spawnX, spawnY, type));
+            state.totalDropped++;
+        }
+
+        function addBones(amount, x, y) {
+            const finalVal = Math.round(amount * state.boneValueMult);
+            state.bones += finalVal;
+            state.totalBonesEarned += finalVal;
+            createFloatingText(x, y, `+${finalVal} Bones`);
+            updateUI();
+        }
+
+        // --- UNBROKEN INPUT & CAMERA DRAGGING ---
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const maxScroll = Math.max(0, 160 + 4 * ZONE_HEIGHT + 140 - height);
+            cameraY = Math.max(0, Math.min(cameraY + e.deltaY * 0.85, maxScroll));
+        }, { passive: false });
+
+        canvas.addEventListener('pointerdown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const clickY = e.clientY - rect.top;
+            const worldY = clickY + cameraY;
+
+            // Top Chamber click = drop bone
+            if (worldY < 120) {
+                dropBone(clickX);
+            } else {
+                isDragging = true;
+                lastDragY = e.clientY;
+            }
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (isDragging) {
+                const dy = lastDragY - e.clientY;
+                lastDragY = e.clientY;
+                const maxScroll = Math.max(0, 160 + 4 * ZONE_HEIGHT + 140 - height);
+                cameraY = Math.max(0, Math.min(cameraY + dy, maxScroll));
+            }
+        });
+
+        window.addEventListener('pointerup', () => isDragging = false);
+
+        // --- MAIN RENDER LOOP ---
+        let lastTime = performance.now();
+
+        function gameLoop(time) {
+            const dt = Math.min((time - lastTime) / 1000, 0.1);
+            lastTime = time;
+
+            // Auto Drop Timer
+            if (state.autoDropRate > 0) {
+                state.autoDropTimer += dt;
+                const interval = 1 / state.autoDropRate;
+                if (state.autoDropTimer >= interval) {
+                    dropBone();
+                    state.autoDropTimer -= interval;
+                }
+            }
+
+            // Updates
+            for (const b of bonesList) b.update();
+            for (const h of hazardsList) h.update(dt);
+
+            // Collisions
+            resolveBoneToBoneCollisions();
+            resolveWorldCollisions();
+
+            // Clear Background
+            ctx.fillStyle = '#030712';
+            ctx.fillRect(0, 0, width, height);
+
+            // RENDER 4 DISTINCT THEMED ZONES
+            const topMargin = 160;
+            for (let z = 0; z < 4; z++) {
+                const zTop = topMargin + z * ZONE_HEIGHT - cameraY;
+                const zBot = zTop + ZONE_HEIGHT;
+
+                if (zBot < -50 || zTop > height + 50) continue;
+
+                const zDef = ZONES[z];
+
+                // Zone Gradient Fill
+                const grad = ctx.createLinearGradient(0, Math.max(0, zTop), 0, Math.min(height, zBot));
+                grad.addColorStop(0, zDef.bgGradTop);
+                grad.addColorStop(1, zDef.bgGradBot);
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, Math.max(0, zTop), width, ZONE_HEIGHT);
+
+                // Zone Header Banner
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+                ctx.fillRect(0, zTop, width, 32);
+                ctx.fillStyle = '#fef08a';
+                ctx.font = 'bold 12px Cinzel';
+                ctx.textAlign = 'left';
+                ctx.fillText(`ZONE ${z + 1}: ${zDef.name.toUpperCase()} — ${zDef.subtitle}`, 16, zTop + 20);
+
+                // Zone Divider Line
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, zBot);
+                ctx.lineTo(width, zBot);
+                ctx.stroke();
+            }
+
+            // Draw Empty Grid Slot Markers
+            for (const slot of towerSlots) {
+                const screenY = slot.y - cameraY;
+                if (screenY < -30 || screenY > height + 30) continue;
+
+                if (!slot.instance) {
+                    const zDef = ZONES[slot.zoneId];
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.arc(slot.x, screenY, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = zDef.slotColor;
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+                    ctx.lineWidth = 1;
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                } else {
+                    slot.instance.draw();
+                }
+            }
+
+            // Draw Hazards
+            for (const h of hazardsList) h.draw();
+
+            // Draw Collectors
+            for (const col of collectorsList) col.draw();
+
+            // Draw Bones
+            for (const b of bonesList) {
+                if (b.y - cameraY >= -40 && b.y - cameraY <= height + 40) {
+                    b.draw();
+                }
+            }
+
+            // Particles
+            for (let i = particlesList.length - 1; i >= 0; i--) {
+                const p = particlesList[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.035;
+                if (p.life <= 0) {
+                    particlesList.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y - cameraY, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Floating Numbers
+            for (let i = floatingTextsList.length - 1; i >= 0; i--) {
+                const ft = floatingTextsList[i];
+                ft.y += ft.vy;
+                ft.life -= 0.025;
+                if (ft.life <= 0) {
+                    floatingTextsList.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.globalAlpha = ft.life;
+                ctx.fillStyle = ft.color;
+                ctx.font = 'bold 11px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText(ft.text, ft.x, ft.y - cameraY);
+                ctx.restore();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- UPGRADE STORE UI RENDERER ---
+        function calculateCost(upg) {
+            return Math.floor(upg.baseCost * Math.pow(upg.costMult, upg.level));
+        }
+
+        function renderUpgrades() {
+            const container = document.getElementById('upgrades-container');
+            container.innerHTML = '';
+
+            upgrades.forEach(upg => {
+                const cost = calculateCost(upg);
+                const isMax = upg.maxLevel && upg.level >= upg.maxLevel;
+                const canAfford = state.bones >= cost && !isMax;
+
+                const card = document.createElement('div');
+                card.className = `p-3 rounded-xl border transition-all flex justify-between items-center ${
+                    isMax 
+                        ? 'bg-slate-900/30 border-slate-800 opacity-50' 
+                        : canAfford 
+                            ? 'bg-slate-900 border-slate-700 hover:border-amber-500/50 cursor-pointer shadow-lg' 
+                            : 'bg-slate-950 border-slate-800/80 opacity-60'
+                }`;
+
+                card.innerHTML = `
+                    <div class="pr-2">
+                        <div class="font-bold text-sm text-slate-100 flex items-center gap-2">
+                            ${upg.name}
+                            ${upg.level > 0 ? `<span class="text-[10px] bg-slate-800 text-amber-300 px-1.5 py-0.5 rounded">Lvl ${upg.level}</span>` : ''}
+                        </div>
+                        <div class="text-xs text-slate-400 mt-0.5">${upg.desc}</div>
+                    </div>
+                    <button 
+                        ${!canAfford || isMax ? 'disabled' : ''} 
+                        class="px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition ${
+                            isMax 
+                                ? 'bg-slate-800 text-slate-500' 
+                                : canAfford 
+                                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow' 
+                                    : 'bg-slate-800 text-slate-400 cursor-not-allowed'
+                        }">
+                        ${isMax ? 'MAXED' : `${cost} Bones`}
+                    </button>
+                `;
+
+                if (canAfford && !isMax) {
+                    card.onclick = () => {
+                        if (state.bones >= cost) {
+                            state.bones -= cost;
+                            upg.level++;
+                            upg.onPurchase();
+                            updateUI();
+                        }
+                    };
+                }
+
+                container.appendChild(card);
+            });
+        }
+
+        function updateUI() {
+            document.getElementById('bone-count').innerText = Math.floor(state.bones).toLocaleString();
+            document.getElementById('bps-counter').innerText = `+${(state.autoDropRate * state.boneValueMult * 3.5).toFixed(1)} Bones/sec est.`;
+            document.getElementById('stat-active').innerText = bonesList.length;
+            renderUpgrades();
+        }
+
+        // RESET TOWER
+        document.getElementById('reset-btn').onclick = () => {
+            state.bones = 20;
+            state.totalBonesEarned = 20;
+            state.totalDropped = 0;
+            state.autoDropRate = 0;
+            state.boneValueMult = 1.0;
+            state.blockerSizeMult = 1.0;
+            state.blockerSpeedMult = 1.0;
+            state.unlockedBones = { femur: true, rib: false, pelvis: false, skull: false };
+            state.zoneObstacles = [
+                { pegs: 4, bumpers: 0, spinners: 0 },
+                { pegs: 0, bumpers: 0, spinners: 0 },
+                { pegs: 0, bumpers: 0, spinners: 0 },
+                { pegs: 0, bumpers: 0, spinners: 0 }
+            ];
+
+            upgrades.forEach(u => u.level = 0);
+            bonesList.length = 0;
+            cameraY = 0;
+
+            assignSlotObstacles();
+            updateUI();
+        };
+
+        // INITIALIZATION
+        window.onload = () => {
+            resizeCanvas();
+            assignSlotObstacles();
+            updateUI();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
