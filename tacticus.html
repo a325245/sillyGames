@@ -1,0 +1,3400 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0b0e14">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Tacticus 3D">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 128 128'%3E%3Crect width='128' height='128' rx='28' fill='%230b0e14'/%3E%3Cpolygon points='64,14 108,39 108,89 64,114 20,89 20,39' fill='%231d4ed8' stroke='%23facc15' stroke-width='6'/%3E%3Ctext x='64' y='78' font-size='48' font-weight='bold' text-anchor='middle' fill='%23facc15' font-family='serif'%3E%CE%A9%3C/text%3E%3C/svg%3E">
+    <title>Warhammer 40,000: Tacticus 3D — Grimdark Hex Tactics</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"
+            onerror="this.onerror=null;this.src='https://unpkg.com/three@0.128.0/build/three.min.js';"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #080a0f;
+            font-family: 'Inter', sans-serif;
+            touch-action: none;
+        }
+        .font-gothic {
+            font-family: 'Cinzel', serif;
+        }
+        #canvas-container {
+            position: fixed;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        .hud-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 10;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .pointer-auto {
+            pointer-events: auto;
+        }
+        /* Imperial Gothic Gold & Slate Glass Styling */
+        .imperial-panel {
+            background: linear-gradient(180deg, rgba(17, 24, 39, 0.92) 0%, rgba(10, 14, 23, 0.96) 100%);
+            border: 1px solid rgba(212, 175, 55, 0.45);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 230, 150, 0.15);
+            backdrop-filter: blur(10px);
+        }
+        .imperial-btn {
+            background: linear-gradient(180deg, #273449 0%, #161e2c 100%);
+            border: 1px solid rgba(212, 175, 55, 0.5);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1);
+            transition: all 0.15s ease;
+        }
+        .imperial-btn:hover:not(:disabled) {
+            border-color: #facc15;
+            background: linear-gradient(180deg, #33445e 0%, #1e293b 100%);
+            transform: translateY(-1px);
+        }
+        .imperial-btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+        .imperial-btn:disabled {
+            opacity: 0.42;
+            cursor: not-allowed;
+        }
+        .gold-btn {
+            background: linear-gradient(180deg, #d97706 0%, #92400e 100%);
+            border: 1px solid #fcd34d;
+            box-shadow: 0 4px 15px rgba(217, 119, 6, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+        }
+        .gold-btn:hover:not(:disabled) {
+            background: linear-gradient(180deg, #f59e0b 0%, #b45309 100%);
+        }
+        .crimson-btn {
+            background: linear-gradient(180deg, #dc2626 0%, #7f1d1d 100%);
+            border: 1px solid #fca5a5;
+            box-shadow: 0 4px 15px rgba(220, 38, 38, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+        .crimson-btn:hover:not(:disabled) {
+            background: linear-gradient(180deg, #ef4444 0%, #991b1b 100%);
+        }
+        .ability-active-glow {
+            animation: pulseGold 1.4s infinite;
+        }
+        @keyframes pulseGold {
+            0%, 100% { box-shadow: 0 0 8px rgba(250, 204, 21, 0.5); }
+            50% { box-shadow: 0 0 22px rgba(250, 204, 21, 0.95); }
+        }
+        .tutorial-pulse {
+            animation: tutPulse 1.8s infinite;
+        }
+        @keyframes tutPulse {
+            0%, 100% { border-color: rgba(56, 189, 248, 0.65); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 12px rgba(56, 189, 248, 0.35); }
+            50% { border-color: rgba(250, 204, 21, 0.95); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.85), 0 0 24px rgba(250, 204, 21, 0.55); }
+        }
+        .stat-chip {
+            cursor: help;
+            border-bottom: 1px dotted rgba(148, 163, 184, 0.55);
+            transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+        }
+        .stat-chip:hover, .stat-chip:active {
+            color: #fde047;
+            border-bottom-color: #fde047;
+            background-color: rgba(250, 204, 21, 0.1);
+        }
+        /* Floating 2D Screen-space Damage & Status Popups */
+        .floating-popup {
+            position: fixed;
+            pointer-events: none;
+            z-index: 25;
+            font-weight: 800;
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95), 0 0 2px #000;
+            transform: translate(-50%, -50%);
+            animation: floatUpFade 1.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+            white-space: nowrap;
+        }
+        @keyframes floatUpFade {
+            0% { opacity: 0; transform: translate(-50%, -20%) scale(0.75); }
+            15% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+            75% { opacity: 1; transform: translate(-50%, -115%) scale(1.0); }
+            100% { opacity: 0; transform: translate(-50%, -155%) scale(0.9); }
+        }
+        /* World-space Mini Unit Health Bars */
+        .unit-badge {
+            position: fixed;
+            pointer-events: none;
+            z-index: 5;
+            transform: translate(-50%, -100%);
+            transition: opacity 0.2s;
+        }
+        /* Custom scrollbar for combat log */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="text-slate-100">
+
+    <!-- 3D WebGL Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- Projected 2D Unit Health Bars Layer -->
+    <div id="unit-bars-layer" class="fixed inset-0 pointer-events-none z-5"></div>
+
+    <!-- Floating Damage Numbers Layer -->
+    <div id="popups-layer" class="fixed inset-0 pointer-events-none z-25"></div>
+
+    <!-- Main Tactical HUD -->
+    <div class="hud-layer p-2 sm:p-3.5">
+        
+        <!-- TOP BAR: Turn Counter, Squad Status, Tactical Controls -->
+        <div class="flex flex-wrap items-center justify-between gap-2 w-full max-w-6xl mx-auto">
+            
+            <!-- Left: Turn & Faction Status -->
+            <div class="imperial-panel rounded-xl px-3 py-2 flex items-center gap-3 pointer-auto">
+                <div class="flex flex-col">
+                    <span class="text-[10px] uppercase tracking-widest text-amber-400 font-bold">Turn <span id="hud-turn">1</span></span>
+                    <span id="hud-phase" class="font-gothic text-xs sm:text-sm font-bold text-sky-300 tracking-wide">IMPERIAL TURN</span>
+                </div>
+                <div class="h-7 w-px bg-slate-700"></div>
+                <!-- Ultramarines vs Necrons Pips -->
+                <div class="flex items-center gap-2.5">
+                    <div class="flex flex-col items-center">
+                        <span class="text-[9px] uppercase text-sky-400 font-bold mb-0.5">Ultramarines</span>
+                        <div id="player-pips" class="flex gap-1"></div>
+                    </div>
+                    <span class="text-xs font-gothic text-amber-500 font-bold">VS</span>
+                    <div class="flex flex-col items-center">
+                        <span class="text-[9px] uppercase text-emerald-400 font-bold mb-0.5">Necrons</span>
+                        <div id="enemy-pips" class="flex gap-1"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Right: Eco Power Mode, Tutorial Toggle, Danger Zone, Camera, Speed, End Turn -->
+            <div class="flex items-center gap-1.5 sm:gap-2 pointer-auto">
+                <button id="btn-eco" onclick="toggleEcoMode()"
+                    data-tip-title="Mobile Battery & Thermal Saver"
+                    data-tip-desc="Eco Smart-Render sleeps the GPU completely (0% render load) whenever you're reading stats or planning moves, waking instantly on touch or combat animations."
+                    class="imperial-btn rounded-xl px-2.5 py-2 text-[11px] font-bold flex items-center gap-1 text-emerald-300 border-emerald-500/60">
+                    <span id="eco-icon">⚡</span>
+                    <span id="eco-label">Eco: Idle</span>
+                </button>
+
+                <button id="btn-tutorial" onclick="toggleTutorialMode()"
+                    data-tip-title="Novice Field Guide"
+                    data-tip-desc="Toggle the step-by-step interactive walkthrough and reactive tactical hints."
+                    class="imperial-btn rounded-xl px-2.5 py-2 text-xs font-bold flex items-center gap-1 text-sky-300 border-sky-400/70">
+                    <span>🎓</span>
+                    <span class="hidden md:inline">Guide</span>
+                </button>
+
+                <button id="btn-danger" onclick="toggleDangerZone()"
+                    data-tip-title="Enemy Danger Zone"
+                    data-tip-desc="Highlights every hex the Necrons can reach and attack next turn in crimson. Keep fragile ranged units outside!"
+                    class="imperial-btn rounded-xl px-2.5 py-2 sm:px-3 sm:py-2 text-xs font-bold flex items-center gap-1.5 text-rose-300">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <span class="hidden sm:inline">Danger</span>
+                </button>
+
+                <button id="btn-cam" onclick="resetCamera()"
+                    data-tip-title="Reset Battlefield Camera"
+                    data-tip-desc="Re-centers the camera over the arena. Touch: 1-finger drag to orbit, 2-finger drag to pan, pinch to zoom."
+                    class="imperial-btn rounded-xl px-2.5 py-2 text-xs font-bold text-slate-200">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                    </svg>
+                </button>
+
+                <button id="btn-speed" onclick="toggleSpeed()"
+                    data-tip-title="Combat Speed (1x / 2x)"
+                    data-tip-desc="Switches movement and weapon animation speed between normal (1x) and fast (2x)."
+                    class="imperial-btn rounded-xl px-2.5 py-2 text-xs font-extrabold text-amber-300">
+                    1x
+                </button>
+
+                <button id="btn-help" onclick="toggleRulesModal(true)"
+                    data-tip-title="Tacticus Rules Codex"
+                    data-tip-desc="Opens the full Warhammer 40,000: Tacticus quick-reference rulebook."
+                    class="imperial-btn rounded-xl px-2.5 py-2 text-xs font-bold text-sky-300">
+                    ?
+                </button>
+
+                <button id="btn-end-turn" onclick="playerEndTurn()"
+                    data-tip-title="End Imperial Turn"
+                    data-tip-desc="Ends your turn and activates Overwatch on any ranged sniper (like Certus) who did not attack."
+                    class="gold-btn rounded-xl px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm font-gothic font-bold text-white tracking-wider shadow-lg">
+                    END TURN
+                </button>
+            </div>
+        </div>
+
+        <!-- TACTICAL STATUS BANNER -->
+        <div class="w-fit max-w-[92vw] mx-auto mt-1.5 imperial-panel rounded-full px-3.5 py-1 text-[11px] font-semibold text-amber-200 border-amber-500/40 shadow pointer-events-none text-center truncate">
+            <span id="banner-text">IMPERIAL TURN — Select an Ultramarine to move or strike</span>
+        </div>
+
+        <!-- INTERACTIVE GUIDED TUTORIAL CARD (Novice Walkthrough & Reactive Prompts) -->
+        <div id="tutorial-card" class="imperial-panel tutorial-pulse rounded-2xl p-3 sm:p-3.5 w-full max-w-lg mx-auto mt-2 pointer-auto border-sky-400/80">
+            <div class="flex items-start justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <span id="tutorial-step-badge" class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/50">
+                        STEP 1 OF 5
+                    </span>
+                    <h3 id="tutorial-title" class="font-gothic text-xs sm:text-sm font-bold text-amber-300">Camera &amp; Touch Controls</h3>
+                </div>
+                <button onclick="dismissTutorial()" class="text-[11px] font-semibold text-slate-400 hover:text-white px-1.5 py-0.5 rounded">
+                    Skip ✕
+                </button>
+            </div>
+            <p id="tutorial-body" class="text-[11px] sm:text-xs text-slate-200 leading-relaxed mt-1.5">
+                Drag with <strong>1 finger</strong> to orbit, drag with <strong>2 fingers</strong> to pan across the battlefield, and <strong>pinch</strong> to zoom. Tap any miniature to inspect its stats!
+            </p>
+            <div class="flex items-center justify-between gap-2 mt-2.5 pt-2 border-t border-slate-800/90">
+                <div id="tutorial-dots" class="flex items-center gap-1.5"></div>
+                <div class="flex items-center gap-1.5">
+                    <button id="btn-tut-prev" onclick="prevTutorialStep()" class="imperial-btn px-2.5 py-1 rounded-lg text-[11px] font-bold text-slate-300">
+                        ← Back
+                    </button>
+                    <button id="btn-tut-next" onclick="nextTutorialStep()" class="gold-btn px-3 py-1 rounded-lg text-[11px] font-bold text-white">
+                        Next →
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MIDDLE LAYER: Combat Log Ticker & Attack Preview Tooltip -->
+        <div class="flex justify-between items-start w-full max-w-6xl mx-auto my-auto pointer-events-none">
+            <!-- Collapsible Combat Log -->
+            <div class="imperial-panel rounded-xl p-2 w-48 sm:w-64 max-h-28 sm:max-h-36 overflow-y-auto no-scrollbar pointer-auto opacity-85 hover:opacity-100 transition-opacity hidden sm:block">
+                <div class="text-[10px] font-bold uppercase tracking-wider text-amber-400/90 border-b border-slate-700/80 pb-1 mb-1 flex justify-between">
+                    <span>Vox-Caster Log</span>
+                    <span id="log-count" class="text-slate-400">0</span>
+                </div>
+                <div id="combat-log" class="space-y-1 text-[11px] leading-tight text-slate-300"></div>
+            </div>
+
+            <!-- Combat Prediction / Strike Confirmation Card (Appears when targeting an enemy) -->
+            <div id="combat-preview-card" class="hidden imperial-panel rounded-2xl p-3.5 w-72 sm:w-80 pointer-auto border-rose-500/80 shadow-2xl mx-auto sm:mx-0">
+                <div class="flex items-center justify-between border-b border-slate-700 pb-2 mb-2">
+                    <div>
+                        <span id="preview-mode-badge" class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-rose-900/80 text-rose-200 border border-rose-500/50">STANDARD ATTACK</span>
+                        <h3 id="preview-target-name" class="font-gothic text-sm font-bold text-white mt-1">Target Name</h3>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-[10px] text-slate-400 uppercase">Target HP</div>
+                        <div id="preview-target-hp" class="text-sm font-extrabold text-emerald-400">120 / 120</div>
+                    </div>
+                </div>
+
+                <!-- Expected Damage & Modifiers -->
+                <div class="bg-slate-900/90 rounded-xl p-2.5 mb-2.5 border border-slate-800">
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-xs text-slate-400">Est. Total Damage:</span>
+                        <span id="preview-dmg-range" class="text-lg font-black text-amber-400">48 – 64</span>
+                    </div>
+                    <div class="flex justify-between text-[11px] text-slate-300 mt-1">
+                        <span id="preview-hits-info">6x Chain (20% Pierce)</span>
+                        <span id="preview-crit-info" class="text-amber-300">25% Crit</span>
+                    </div>
+                    <div id="preview-modifiers" class="flex flex-wrap gap-1 mt-2"></div>
+                </div>
+
+                <div class="flex gap-2">
+                    <button onclick="cancelTargetPreview()" class="imperial-btn flex-1 py-2 rounded-xl text-xs font-bold text-slate-300">
+                        Cancel
+                    </button>
+                    <button id="btn-confirm-strike" onclick="confirmAttackAction()" class="crimson-btn flex-1 py-2 rounded-xl text-xs font-gothic font-bold text-white tracking-wider">
+                        EXECUTE STRIKE
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOTTOM BAR: Selected Unit Card & Tactical Actions -->
+        <div class="w-full max-w-4xl mx-auto">
+            <!-- Hex / Terrain Hover Info Pill -->
+            <div id="hex-info-pill" class="hidden mb-1.5 mx-auto w-fit imperial-panel rounded-full px-3.5 py-1 text-[11px] text-slate-200 flex items-center gap-2">
+                <span id="hex-info-title" class="font-bold text-amber-400">High Ground (Lv 2)</span>
+                <span class="text-slate-500">•</span>
+                <span id="hex-info-desc" class="text-slate-300">+50% Damage vs Lower Ground</span>
+            </div>
+
+            <!-- Selected Unit Panel -->
+            <div id="unit-card" class="hidden imperial-panel rounded-2xl p-3 sm:p-4 pointer-auto">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    
+                    <!-- Left: Unit Identity, HP, Stats -->
+                    <div class="flex items-start sm:items-center gap-3">
+                        <div id="unit-avatar" class="w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center font-gothic font-black text-xl border-2 shrink-0 shadow-inner">
+                            U
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h2 id="unit-name" class="font-gothic text-sm sm:text-base font-bold text-white truncate">Bellator</h2>
+                                <span id="unit-faction-tag" class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-700">Ultramarines</span>
+                                <span id="unit-traits-container" class="flex flex-wrap gap-1"></span>
+                            </div>
+                            <p id="unit-role" class="text-[11px] text-slate-400 truncate">Inceptor Sergeant • Heavy Bolt &amp; Chainsword</p>
+                            
+                            <!-- HP Bar -->
+                            <div class="mt-1.5 flex items-center gap-2 stat-chip w-fit rounded px-1"
+                                 data-tip-title="Hit Points (HP)"
+                                 data-tip-desc="Unit health remaining. If HP reaches 0, the unit is eliminated from the skirmish. Incisus can heal wounded allies.">
+                                <div class="w-32 sm:w-40 h-2.5 bg-slate-900 rounded-full overflow-hidden border border-slate-700">
+                                    <div id="unit-hp-bar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 100%"></div>
+                                </div>
+                                <span id="unit-hp-text" class="text-xs font-extrabold text-slate-200">140/140</span>
+                            </div>
+
+                            <!-- Core Tacticus Stat Line with Novice Tooltips -->
+                            <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1.5 text-[11px] text-slate-300">
+                                <span class="stat-chip px-1 rounded" data-tip-title="Movement (MOV)" data-tip-desc="Maximum hexes this unit can move per turn. Climbing up 2 elevation levels costs 2 MOV unless the unit has Flying.">
+                                    <strong class="text-slate-400">MOV:</strong> <span id="stat-mov" class="text-white font-bold">3</span>
+                                </span>
+                                <span class="stat-chip px-1 rounded" data-tip-title="Armor (ARM)" data-tip-desc="Subtracted from each incoming hit's Base Damage—however, every weapon still deals at least its Pierce % floor!">
+                                    <strong class="text-slate-400">ARM:</strong> <span id="stat-arm" class="text-white font-bold">28</span>
+                                </span>
+                                <span id="chip-atk" class="stat-chip px-1 rounded" data-tip-title="Base Damage × Hits (ATK)" data-tip-desc="Each attack strikes N times. Formula per hit: Max(Damage - Enemy Armor, Damage × Pierce%). Crits roll sequentially per hit!">
+                                    <strong class="text-slate-400">ATK:</strong> <span id="stat-atk" class="text-amber-300 font-bold">18 x 6</span>
+                                </span>
+                                <span id="chip-prc" class="stat-chip px-1 rounded" data-tip-title="Armor Pierce Ratio (PRC)" data-tip-desc="Guaranteed minimum % of Base Damage that bypasses enemy Armor. Psychic (100%) and Piercing (80%) shred heavy armor!">
+                                    <strong class="text-slate-400">PRC:</strong> <span id="stat-prc" class="text-sky-300 font-bold">20%</span>
+                                </span>
+                                <span class="stat-chip px-1 rounded" data-tip-title="Attack Range (RNG)" data-tip-desc="Melee (1 Hex) strikes adjacent foes. Ranged (2–3 Hex) shoots across gaps, though Tall Grass reduces ranged hits by 2.">
+                                    <strong class="text-slate-400">RNG:</strong> <span id="stat-rng" class="text-rose-300 font-bold">Melee</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Action Buttons (Undo Move, Wait, Active Ability) -->
+                    <div id="unit-actions-bar" class="flex items-center gap-2 justify-end border-t sm:border-t-0 border-slate-800 pt-2 sm:pt-0">
+                        <button id="btn-undo-move" onclick="undoUnitMove()"
+                            data-tip-title="Undo Movement"
+                            data-tip-desc="Rewinds this unit back to its starting hex before you commit to an attack or ability."
+                            class="hidden imperial-btn rounded-xl px-3 py-2.5 text-xs font-bold text-amber-300 flex items-center gap-1">
+                            <span>↩ Undo</span>
+                        </button>
+
+                        <button id="btn-wait" onclick="unitWaitAction()"
+                            data-tip-title="Hold Position / End Unit Turn"
+                            data-tip-desc="Ends this unit's turn without attacking. If the unit has Overwatch (like Certus), it enters Overwatch stance!"
+                            class="imperial-btn rounded-xl px-3 py-2.5 text-xs font-bold text-slate-300">
+                            Hold / End
+                        </button>
+
+                        <button id="btn-ability" onclick="toggleAbilityMode()"
+                            data-tip-title="Active Signature Ability"
+                            data-tip-desc="Tap to toggle special ability targeting (gold/blue/green hexes). Recharges after its cooldown turns."
+                            class="imperial-btn rounded-xl px-3.5 py-2.5 text-xs font-bold text-amber-200 flex flex-col items-start min-w-[145px] relative">
+                            <div class="flex items-center justify-between w-full gap-2">
+                                <span id="ability-name" class="font-gothic text-[11px] font-bold text-amber-400 truncate">Death From Above</span>
+                                <span id="ability-cd" class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-extrabold">READY</span>
+                            </div>
+                            <span id="ability-short-desc" class="text-[10px] text-slate-300 font-normal truncate max-w-[175px]">Summon allied Inceptor</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- UNIVERSAL FLOATING NOVICE TOOLTIP POPOVER (Works on Hover & Touch Tap) -->
+    <div id="novice-tooltip" class="hidden fixed z-50 max-w-xs imperial-panel rounded-xl p-3 border-amber-400/80 shadow-2xl pointer-events-none transition-opacity duration-150">
+        <div class="flex items-center justify-between gap-2 mb-1">
+            <span id="novice-tip-title" class="font-gothic text-xs font-bold text-amber-300">Stat Info</span>
+            <span class="text-[9px] uppercase tracking-wider text-sky-300 font-bold">Tactical Info</span>
+        </div>
+        <p id="novice-tip-desc" class="text-[11px] text-slate-200 leading-snug"></p>
+    </div>
+
+    <!-- TACTICAL CODEX / RULES MODAL -->
+    <div id="rules-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="imperial-panel rounded-2xl max-w-lg w-full p-5 max-h-[85vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-3 mb-3">
+                <h2 class="font-gothic text-lg font-bold text-amber-400">Warhammer 40,000: Tacticus Rules</h2>
+                <button onclick="toggleRulesModal(false)" class="text-slate-400 hover:text-white text-xl font-bold px-2">&times;</button>
+            </div>
+            <div class="space-y-3 text-xs text-slate-300 leading-relaxed">
+                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <h3 class="font-bold text-sky-300 uppercase mb-1">1. Official Damage & Pierce Formula</h3>
+                    <p>Every attack strikes <strong>N times</strong> (e.g., 6x Chain). Each hit deals:</p>
+                    <p class="font-mono text-amber-300 my-1">Damage = Max(BaseDmg - Armor, BaseDmg × Pierce%)</p>
+                    <p>Criticals roll sequentially per hit: if Hit 1 crits, Hit 2 can also crit!</p>
+                </div>
+                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <h3 class="font-bold text-amber-300 uppercase mb-1">2. Elevation & Terrain Cover</h3>
+                    <ul class="list-disc pl-4 space-y-1">
+                        <li><strong>High Ground:</strong> Attacking a target on lower elevation grants <span class="text-amber-400 font-bold">+50% Damage</span>.</li>
+                        <li><strong>Tall Grass / Smoke:</strong> Reduces incoming ranged hits by 2 (minimum 1 hit).</li>
+                        <li><strong>Trenches / Barricades:</strong> Reduces all incoming damage by <span class="text-emerald-400 font-bold">50%</span>.</li>
+                        <li><strong>Fire Hexes:</strong> Deals burn damage at the start of the unit's turn.</li>
+                    </ul>
+                </div>
+                <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <h3 class="font-bold text-rose-300 uppercase mb-1">3. Overwatch & Controls</h3>
+                    <p>Units with <strong>Overwatch</strong> (Certus &amp; Imospekh) automatically fire upon the first enemy entering their attack range during the enemy turn. Toggle the <strong>Danger</strong> button to inspect enemy threat zones.</p>
+                    <p class="mt-1 text-slate-400">Touch/Mouse: Tap unit to select, tap blue hex to move, tap red hex to preview &amp; confirm attack. Drag to orbit, pinch/scroll to zoom.</p>
+                </div>
+            </div>
+            <button onclick="toggleRulesModal(false)" class="gold-btn w-full mt-4 py-2.5 rounded-xl font-gothic font-bold text-sm text-white">
+                FOR THE EMPEROR!
+            </button>
+        </div>
+    </div>
+
+    <!-- VICTORY / DEFEAT MODAL -->
+    <div id="gameover-modal" class="hidden fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="imperial-panel rounded-2xl max-w-md w-full p-6 text-center border-2 border-amber-400/70">
+            <div id="gameover-badge" class="inline-block px-3 py-1 rounded-full text-xs font-extrabold uppercase tracking-widest mb-2 bg-amber-500/20 text-amber-300 border border-amber-400/50">
+                SKIRMISH COMPLETE
+            </div>
+            <h1 id="gameover-title" class="font-gothic text-2xl sm:text-3xl font-black text-white mb-2">IMPERIAL VICTORY</h1>
+            <p id="gameover-subtitle" class="text-xs sm:text-sm text-slate-300 mb-5">The Xenos threat has been purged from the sector.</p>
+            
+            <div class="grid grid-cols-3 gap-2 bg-slate-900/90 p-3 rounded-xl border border-slate-800 mb-5 text-center">
+                <div>
+                    <div class="text-[10px] text-slate-400 uppercase">Turns</div>
+                    <div id="stat-end-turns" class="text-base font-black text-amber-400">5</div>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 uppercase">Enemies Slain</div>
+                    <div id="stat-end-kills" class="text-base font-black text-emerald-400">5</div>
+                </div>
+                <div>
+                    <div class="text-[10px] text-slate-400 uppercase">Damage Dealt</div>
+                    <div id="stat-end-dmg" class="text-base font-black text-sky-400">640</div>
+                </div>
+            </div>
+
+            <button onclick="restartBattle()" class="gold-btn w-full py-3 rounded-xl font-gothic font-bold text-sm text-white tracking-wider shadow-xl">
+                DEPLOY NEW SKIRMISH
+            </button>
+        </div>
+    </div>
+
+    <script>
+    /**
+     * ============================================================================
+     * WARHAMMER 40,000: TACTICUS 3D — COMPLETE GAME ENGINE
+     * Architecture:
+     * 1. Axial Hex Math & A* Pathfinding (Elevation, Flying, Cover, Fire)
+     * 2. Official Tacticus Combat & Damage Formula (Armor, Pierce, Sequential Crits)
+     * 3. Three.js Procedural 3D Gothic Battlefield & Articulated Miniatures
+     * 4. Tactical AI Heuristic Engine (High Ground, Cover, Focus Fire, Abilities)
+     * 5. Responsive Touch/Mouse Raycasting, Orbit/Pinch Camera & UI Sync
+     * ============================================================================
+     */
+
+    // --- CONSTANTS & AXIAL HEX HELPERS ---
+    const HEX_RADIUS = 1.05;
+    const HEX_WIDTH = Math.sqrt(3) * HEX_RADIUS;
+    const HEX_VERT_SPACING = 1.5 * HEX_RADIUS;
+    const ELEVATION_STEP = 0.42;
+
+    const AXIAL_DIRS = [
+        { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 },
+        { q: -1, r: 0 }, { q: -1, r: 1 }, { q: 0, r: 1 }
+    ];
+
+    function hexKey(q, r) {
+        return `${q},${r}`;
+    }
+
+    function hexDistance(a, b) {
+        return (Math.abs(a.q - b.q) + Math.abs(a.q + a.r - b.q - b.r) + Math.abs(a.r - b.r)) / 2;
+    }
+
+    function hexToWorld(q, r, elevation = 0) {
+        const x = HEX_RADIUS * (Math.sqrt(3) * q + (Math.sqrt(3) / 2) * r);
+        const z = HEX_RADIUS * (1.5 * r);
+        const y = elevation * ELEVATION_STEP;
+        return new THREE.Vector3(x, y, z);
+    }
+
+    // --- UNIT ROSTER BLUEPRINTS (WARHAMMER 40K: TACTICUS ACCURATE) ---
+    const UNIT_TEMPLATES = {
+        // ULTRAMARINES (PLAYER)
+        bellator: {
+            id: 'bellator',
+            name: 'Bellator',
+            role: 'Inceptor Sergeant',
+            faction: 'player',
+            color: 0x1d4ed8,
+            trimColor: 0xfacc15,
+            badgeText: 'B',
+            maxHp: 155,
+            armor: 32,
+            move: 3,
+            range: 1,
+            damage: 17,
+            hits: 6,
+            pierce: 0.20, // Chain
+            damageType: 'Chain',
+            critChance: 0.25,
+            critDamage: 14,
+            traits: ['Flying'],
+            ability: {
+                name: 'Death From Above',
+                shortDesc: 'Summon Inceptor ally',
+                type: 'summon',
+                cooldown: 3,
+                range: 1
+            }
+        },
+        inceptor_summon: {
+            id: 'inceptor_summon',
+            name: 'Inceptor Brother',
+            role: 'Jump Assault Support',
+            faction: 'player',
+            color: 0x2563eb,
+            trimColor: 0xe2e8f0,
+            badgeText: 'I',
+            maxHp: 85,
+            armor: 22,
+            move: 3,
+            range: 1,
+            damage: 14,
+            hits: 5,
+            pierce: 0.20,
+            damageType: 'Chain',
+            critChance: 0.20,
+            critDamage: 10,
+            traits: ['Flying', 'Summon'],
+            ability: null
+        },
+        varro: {
+            id: 'varro',
+            name: 'Varro Tigurius',
+            role: 'Chief Librarian',
+            faction: 'player',
+            color: 0x1e40af,
+            trimColor: 0x38bdf8,
+            badgeText: 'V',
+            maxHp: 115,
+            armor: 20,
+            move: 3,
+            range: 2,
+            damage: 58,
+            hits: 1,
+            pierce: 1.00, // Psychic 100% pierce
+            damageType: 'Psychic',
+            critChance: 0.25,
+            critDamage: 30,
+            traits: ['Psyker'],
+            ability: {
+                name: "Emperor's Wrath",
+                shortDesc: 'Chain psychic lightning',
+                type: 'chain_lightning',
+                cooldown: 3,
+                range: 2
+            }
+        },
+        certus: {
+            id: 'certus',
+            name: 'Certus',
+            role: 'Eliminator Sniper',
+            faction: 'player',
+            color: 0x334155,
+            trimColor: 0x3b82f6,
+            badgeText: 'C',
+            maxHp: 105,
+            armor: 18,
+            move: 2,
+            range: 3,
+            damage: 64,
+            hits: 1,
+            pierce: 0.80, // Piercing
+            damageType: 'Piercing',
+            critChance: 0.35,
+            critDamage: 38,
+            traits: ['Overwatch'],
+            ability: {
+                name: 'Mortis Round',
+                shortDesc: 'Heavy shot ignoring cover',
+                type: 'mortis_shot',
+                cooldown: 3,
+                range: 3
+            }
+        },
+        vindicta: {
+            id: 'vindicta',
+            name: 'Vindicta',
+            role: 'Sister of Battle',
+            faction: 'player',
+            color: 0x991b1b,
+            trimColor: 0xfef08a,
+            badgeText: 'S',
+            maxHp: 110,
+            armor: 19,
+            move: 3,
+            range: 2,
+            damage: 21,
+            hits: 4,
+            pierce: 0.25, // Flame
+            damageType: 'Flame',
+            critChance: 0.25,
+            critDamage: 15,
+            traits: ['Incendiary'],
+            ability: {
+                name: 'Conflagration',
+                shortDesc: 'AoE flame blast + Fire hexes',
+                type: 'flame_aoe',
+                cooldown: 3,
+                range: 2
+            }
+        },
+        incisus: {
+            id: 'incisus',
+            name: 'Incisus',
+            role: 'Primaris Apothecary',
+            faction: 'player',
+            color: 0xf1f5f9,
+            trimColor: 0xdc2626,
+            badgeText: '+',
+            maxHp: 130,
+            armor: 26,
+            move: 3,
+            range: 1,
+            damage: 44,
+            hits: 1,
+            pierce: 0.80,
+            damageType: 'Piercing',
+            critChance: 0.20,
+            critDamage: 22,
+            traits: ['Healer'],
+            ability: {
+                name: 'Narthecium',
+                shortDesc: 'Restore +75 HP to ally/self',
+                type: 'heal',
+                cooldown: 2,
+                range: 1
+            }
+        },
+
+        // NECRONS (ENEMY AI)
+        anuphet: {
+            id: 'anuphet',
+            name: 'Anuphet',
+            role: 'Necron Overlord',
+            faction: 'enemy',
+            color: 0xb45309,
+            trimColor: 0x10b981,
+            badgeText: 'A',
+            maxHp: 165,
+            armor: 34,
+            move: 3,
+            range: 1,
+            damage: 30,
+            hits: 3,
+            pierce: 0.40, // Power
+            damageType: 'Power',
+            critChance: 0.25,
+            critDamage: 18,
+            traits: ['Commander'],
+            ability: {
+                name: 'Resurrection Orb',
+                shortDesc: 'Summons Necron Warrior',
+                type: 'summon_necron',
+                cooldown: 3,
+                range: 1
+            }
+        },
+        necron_warrior: {
+            id: 'necron_warrior',
+            name: 'Necron Warrior',
+            role: 'Undying Phalanx',
+            faction: 'enemy',
+            color: 0x475569,
+            trimColor: 0x34d399,
+            badgeText: 'W',
+            maxHp: 75,
+            armor: 18,
+            move: 2,
+            range: 2,
+            damage: 24,
+            hits: 2,
+            pierce: 0.30,
+            damageType: 'Gauss',
+            critChance: 0.15,
+            critDamage: 12,
+            traits: ['Summon'],
+            ability: null
+        },
+        aleph: {
+            id: 'aleph',
+            name: 'Aleph-Null',
+            role: 'Canoptek Spyder',
+            faction: 'enemy',
+            color: 0x78350f,
+            trimColor: 0x34d399,
+            badgeText: 'N',
+            maxHp: 145,
+            armor: 28,
+            move: 3,
+            range: 1,
+            damage: 18,
+            hits: 5,
+            pierce: 0.30,
+            damageType: 'Particle',
+            critChance: 0.20,
+            critDamage: 12,
+            traits: ['Flying', 'Mechanical'],
+            ability: {
+                name: 'Fabricator Claw',
+                shortDesc: 'Repairs self or ally +65 HP',
+                type: 'heal',
+                cooldown: 2,
+                range: 1
+            }
+        },
+        imospekh: {
+            id: 'imospekh',
+            name: 'Imospekh',
+            role: 'Hexmark Destroyer',
+            faction: 'enemy',
+            color: 0x1e293b,
+            trimColor: 0x10b981,
+            badgeText: 'I',
+            maxHp: 110,
+            armor: 20,
+            move: 3,
+            range: 2,
+            damage: 14,
+            hits: 6,
+            pierce: 0.30,
+            damageType: 'Gauss',
+            critChance: 0.25,
+            critDamage: 10,
+            traits: ['Multi-Overwatch'],
+            ability: null
+        },
+        thutmose: {
+            id: 'thutmose',
+            name: 'Thutmose',
+            role: 'Plasmancer',
+            faction: 'enemy',
+            color: 0x065f46,
+            trimColor: 0x6ee7b7,
+            badgeText: 'T',
+            maxHp: 105,
+            armor: 16,
+            move: 3,
+            range: 2,
+            damage: 34,
+            hits: 2,
+            pierce: 1.00, // Psychic / Plasma 100% pierce
+            damageType: 'Psychic',
+            critChance: 0.25,
+            critDamage: 20,
+            traits: ['Flying'],
+            ability: {
+                name: 'Living Lightning',
+                shortDesc: 'AoE plasma discharge',
+                type: 'plasma_aoe',
+                cooldown: 3,
+                range: 2
+            }
+        },
+        makhotep: {
+            id: 'makhotep',
+            name: 'Makhotep',
+            role: 'Royal Warden',
+            faction: 'enemy',
+            color: 0x92400e,
+            trimColor: 0x10b981,
+            badgeText: 'M',
+            maxHp: 120,
+            armor: 24,
+            move: 3,
+            range: 3,
+            damage: 28,
+            hits: 2,
+            pierce: 0.35,
+            damageType: 'Gauss',
+            critChance: 0.20,
+            critDamage: 16,
+            traits: ['Relentless March'],
+            ability: null
+        }
+    };
+
+    // --- GLOBAL GAME STATE ---
+    const IS_MOBILE_DEVICE = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.innerWidth < 820;
+
+    const GameState = {
+        turn: 1,
+        phase: 'player', // 'player' | 'enemy' | 'animating' | 'gameover'
+        speedMultiplier: 1,
+        ecoMode: true, // Smart On-Demand Rendering (0% GPU when idle)
+        showDangerZone: false,
+        hexMap: new Map(), // key -> HexCell
+        hexList: [], // Indexed array matching InstancedMesh instanceId
+        units: [], // Array of Unit objects
+        selectedUnitId: null,
+        abilityMode: false,
+        pendingTarget: null, // { targetHex, mode: 'attack' | 'ability' }
+        moveSnapshot: null, // { unitId, fromQ, fromR } for Undo Move
+        stats: {
+            kills: 0,
+            damageDealt: 0
+        },
+        tutorial: {
+            active: true,
+            stepIndex: 0,
+            seenHints: new Set()
+        }
+    };
+
+    // --- ON-DEMAND RENDERING & INSTANCED MESH GLOBALS ---
+    const RenderSched = {
+        dirty: true,
+        activeTweens: 0,
+        lastRenderTime: 0,
+        isIdle: false,
+        idleTimer: null
+    };
+
+    let hexInstancedMesh = null;
+    let hexRimInstancedMesh = null;
+    let grassInstancedMesh = null;
+    let sharedParticleGeo = null;
+    let sharedProjectileGeo = null;
+    const sharedMaterialCache = new Map();
+
+    function getCachedMaterial(key, factory) {
+        if (!sharedMaterialCache.has(key)) {
+            sharedMaterialCache.set(key, factory());
+        }
+        return sharedMaterialCache.get(key);
+    }
+
+    function requestRender(markShadowDirty = false) {
+        RenderSched.dirty = true;
+        if (markShadowDirty && renderer) {
+            renderer.shadowMap.needsUpdate = true;
+        }
+        if (RenderSched.isIdle) {
+            RenderSched.isIdle = false;
+            updateEcoBadge(false);
+        }
+        clearTimeout(RenderSched.idleTimer);
+        RenderSched.idleTimer = setTimeout(() => {
+            if (!RenderSched.dirty && RenderSched.activeTweens === 0 && activeParticles.length === 0 && GameState.ecoMode) {
+                RenderSched.isIdle = true;
+                updateEcoBadge(true);
+            }
+        }, 180);
+    }
+
+    function updateEcoBadge(isSleeping) {
+        const iconEl = document.getElementById('eco-icon');
+        const labelEl = document.getElementById('eco-label');
+        const btnEl = document.getElementById('btn-eco');
+        if (!iconEl || !labelEl || !btnEl) return;
+
+        if (!GameState.ecoMode) {
+            iconEl.textContent = '🔥';
+            labelEl.textContent = '60fps';
+            btnEl.className = 'imperial-btn rounded-xl px-2.5 py-2 text-[11px] font-bold flex items-center gap-1 text-amber-300 border-amber-500/60';
+        } else if (isSleeping) {
+            iconEl.textContent = '💤';
+            labelEl.textContent = 'Eco: Idle';
+            btnEl.className = 'imperial-btn rounded-xl px-2.5 py-2 text-[11px] font-bold flex items-center gap-1 text-emerald-300 border-emerald-500/60';
+        } else {
+            iconEl.textContent = '⚡';
+            labelEl.textContent = 'Eco: Active';
+            btnEl.className = 'imperial-btn rounded-xl px-2.5 py-2 text-[11px] font-bold flex items-center gap-1 text-sky-300 border-sky-400/70';
+        }
+    }
+
+    function toggleEcoMode() {
+        GameState.ecoMode = !GameState.ecoMode;
+        if (GameState.ecoMode) {
+            requestRender();
+        } else {
+            RenderSched.isIdle = false;
+            updateEcoBadge(false);
+        }
+    }
+
+    function registerPWAManifest() {
+        try {
+            const manifest = {
+                name: 'Warhammer 40,000: Tacticus 3D',
+                short_name: 'Tacticus 3D',
+                description: '3D Turn-Based Hex Tactical Strategy Skirmish',
+                start_url: window.location.href,
+                display: 'standalone',
+                orientation: 'any',
+                background_color: '#080a0f',
+                theme_color: '#0b0e14',
+                icons: [{
+                    src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230b0e14'/%3E%3Cpolygon points='96,20 162,58 162,134 96,172 30,134 30,58' fill='%231d4ed8' stroke='%23facc15' stroke-width='9'/%3E%3Ctext x='96' y='118' font-size='74' font-weight='bold' text-anchor='middle' fill='%23facc15' font-family='serif'%3E%CE%A9%3C/text%3E%3C/svg%3E",
+                    sizes: '192x192',
+                    type: 'image/svg+xml'
+                }]
+            };
+            const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+            const manifestUrl = URL.createObjectURL(blob);
+            const link = document.createElement('link');
+            link.rel = 'manifest';
+            link.href = manifestUrl;
+            document.head.appendChild(link);
+        } catch (err) {
+            // Ignore manifest creation restrictions in sandboxed iframes
+        }
+    }
+
+    // --- NOVICE TUTORIAL STEPS & TRAIT DICTIONARY ---
+    const TUTORIAL_STEPS = [
+        {
+            title: 'Camera & Touch Controls',
+            body: 'Drag with <strong>1 finger</strong> to orbit the arena, drag with <strong>2 fingers</strong> to pan across the battlefield, and <strong>pinch</strong> to zoom. Tap any miniature to inspect its stats!'
+        },
+        {
+            title: 'Selecting & Moving Units',
+            body: 'Tap any blue-ringed <strong>Ultramarine</strong> to view their blue movement range. Tap a blue hex to move—if you change your mind before attacking, tap <strong>↩ Undo</strong>.'
+        },
+        {
+            title: 'High Ground & Terrain Cover',
+            body: '<strong>High Ground</strong> (+1/+2 elevation) grants <span class="text-amber-300 font-bold">+50% Damage</span> against lower foes! <strong>Tall Grass</strong> blocks 2 ranged hits, and <strong>Trenches</strong> cut damage by 50%.'
+        },
+        {
+            title: 'Attacking & Damage Preview',
+            body: 'Enemies within weapon range glow <strong>Crimson</strong>. Tap an enemy hex to open the <strong>Combat Forecast</strong> showing exact min–max damage, hits, and Armor Pierce before you strike.'
+        },
+        {
+            title: 'Abilities, Overwatch & Danger Zone',
+            body: 'Each hero has a powerful <strong>Active Ability</strong>. Snipers like <strong>Certus</strong> enter <strong>Overwatch</strong> if they Hold without attacking. Toggle <strong>Danger</strong> in the top bar to see enemy threat ranges!'
+        }
+    ];
+
+    const TRAIT_DESCRIPTIONS = {
+        'Flying': {
+            title: 'Trait: Flying',
+            desc: 'Ignores terrain elevation penalties and can fly directly over ruined monolith pillars and enemy units.'
+        },
+        'Overwatch': {
+            title: 'Trait: Overwatch',
+            desc: 'If this unit ends its turn without attacking, it automatically shoots the first enemy that moves into its weapon range.'
+        },
+        'Multi-Overwatch': {
+            title: 'Trait: Multi-Overwatch (Hexmark)',
+            desc: 'Dangerous! Imospekh fires Overwatch shots at EVERY enemy that enters his 2-hex range during your turn.'
+        },
+        'Psyker': {
+            title: 'Trait: Psyker (100% Pierce)',
+            desc: 'Psychic bolts completely ignore enemy Armor (100% Pierce) and can chain to nearby enemies.'
+        },
+        'Incendiary': {
+            title: 'Trait: Incendiary Flamer',
+            desc: 'Attacks ignite the target hex in flames for 2 turns, dealing 18 burn damage at the start of the turn.'
+        },
+        'Healer': {
+            title: 'Trait: Apothecary Healer',
+            desc: 'Can use Narthecium to restore +75 HP to himself or an adjacent wounded Ultramarine.'
+        },
+        'Commander': {
+            title: 'Trait: Necron Overlord',
+            desc: 'Commands the Necron phalanx and can summon fresh Necron Warriors onto the battlefield.'
+        },
+        'Mechanical': {
+            title: 'Trait: Canoptek Construct',
+            desc: 'Armored mechanical unit capable of repairing itself or adjacent Necron allies.'
+        },
+        'Relentless March': {
+            title: 'Trait: Relentless March',
+            desc: 'Passive Aura: Adjacent Necron allies gain +1 Movement range at the start of their turn.'
+        },
+        'Summon': {
+            title: 'Trait: Summoned Reinforcement',
+            desc: 'Deployed mid-battle by a commander ability. Acts starting on the following turn.'
+        }
+    };
+
+    // --- THREE.JS SCENE GLOBALS ---
+    let scene, camera, renderer, raycaster, pointer;
+    let hexGroup, unitGroup, highlightGroup, fxGroup;
+    let clock = new THREE.Clock();
+    let activeProjectiles = [];
+    let activeParticles = [];
+
+    // Camera Orbit/Pan/Zoom State
+    const CamControl = {
+        target: new THREE.Vector3(0, 0, 0),
+        spherical: new THREE.Spherical(14.5, Math.PI / 3.15, 0.0),
+        isDragging: false,
+        dragMoved: false,
+        lastX: 0,
+        lastY: 0,
+        pinchDist: 0,
+        lastMidX: 0,
+        lastMidY: 0
+    };
+
+    // ============================================================================
+    // 1. HEX MAP GENERATION & TERRAIN ARCHITECTURE
+    // ============================================================================
+    function generateBattlefield() {
+        GameState.hexMap.clear();
+        GameState.hexList = [];
+        // Create an asymmetric, tactically rich 8x7 axial hex arena
+        const mapLayout = [
+            // r = -3 (Top Necron Ridge)
+            { q: -1, r: -3, elev: 1, terrain: 'normal' },
+            { q: 0,  r: -3, elev: 2, terrain: 'trench' },
+            { q: 1,  r: -3, elev: 1, terrain: 'normal' },
+            { q: 2,  r: -3, elev: 1, terrain: 'grass' },
+            { q: 3,  r: -3, elev: 2, terrain: 'normal' },
+
+            // r = -2
+            { q: -2, r: -2, elev: 1, terrain: 'grass' },
+            { q: -1, r: -2, elev: 1, terrain: 'normal' },
+            { q: 0,  r: -2, elev: 1, terrain: 'normal' },
+            { q: 1,  r: -2, elev: 0, terrain: 'pillar' },
+            { q: 2,  r: -2, elev: 1, terrain: 'trench' },
+            { q: 3,  r: -2, elev: 1, terrain: 'normal' },
+
+            // r = -1
+            { q: -3, r: -1, elev: 0, terrain: 'normal' },
+            { q: -2, r: -1, elev: 1, terrain: 'trench' },
+            { q: -1, r: -1, elev: 0, terrain: 'grass' },
+            { q: 0,  r: -1, elev: 2, terrain: 'normal' }, // Central High Ground Command Point
+            { q: 1,  r: -1, elev: 1, terrain: 'normal' },
+            { q: 2,  r: -1, elev: 0, terrain: 'grass' },
+            { q: 3,  r: -1, elev: 0, terrain: 'normal' },
+
+            // r = 0 (Center No-Man's Land)
+            { q: -3, r: 0, elev: 1, terrain: 'grass' },
+            { q: -2, r: 0, elev: 0, terrain: 'normal' },
+            { q: -1, r: 0, elev: 1, terrain: 'trench' },
+            { q: 0,  r: 0, elev: 1, terrain: 'normal' },
+            { q: 1,  r: 0, elev: 2, terrain: 'trench' }, // Contested East Hill
+            { q: 2,  r: 0, elev: 0, terrain: 'pillar' },
+            { q: 3,  r: 0, elev: 0, terrain: 'normal' },
+
+            // r = 1
+            { q: -3, r: 1, elev: 0, terrain: 'normal' },
+            { q: -2, r: 1, elev: 0, terrain: 'pillar' },
+            { q: -1, r: 1, elev: 2, terrain: 'normal' }, // West Sniper Overlook
+            { q: 0,  r: 1, elev: 0, terrain: 'grass' },
+            { q: 1,  r: 1, elev: 1, terrain: 'normal' },
+            { q: 2,  r: 1, elev: 1, terrain: 'trench' },
+            { q: 3,  r: 1, elev: 0, terrain: 'grass' },
+
+            // r = 2
+            { q: -3, r: 2, elev: 1, terrain: 'normal' },
+            { q: -2, r: 2, elev: 1, terrain: 'trench' },
+            { q: -1, r: 2, elev: 1, terrain: 'normal' },
+            { q: 0,  r: 2, elev: 0, terrain: 'normal' },
+            { q: 1,  r: 2, elev: 1, terrain: 'grass' },
+            { q: 2,  r: 2, elev: 1, terrain: 'normal' },
+
+            // r = 3 (Bottom Ultramarine Deployment)
+            { q: -3, r: 3, elev: 1, terrain: 'normal' },
+            { q: -2, r: 3, elev: 2, terrain: 'normal' },
+            { q: -1, r: 3, elev: 1, terrain: 'trench' },
+            { q: 0,  r: 3, elev: 1, terrain: 'normal' },
+            { q: 1,  r: 3, elev: 1, terrain: 'grass' }
+        ];
+
+        mapLayout.forEach((cell, idx) => {
+            const key = hexKey(cell.q, cell.r);
+            const hexObj = {
+                instanceId: idx,
+                q: cell.q,
+                r: cell.r,
+                elevation: cell.elev,
+                terrain: cell.terrain, // 'normal' | 'grass' | 'trench' | 'pillar'
+                fireTurns: 0,
+                highlightMesh: null,
+                fireMesh: null
+            };
+            GameState.hexMap.set(key, hexObj);
+            GameState.hexList.push(hexObj);
+        });
+    }
+
+    function getHex(q, r) {
+        return GameState.hexMap.get(hexKey(q, r)) || null;
+    }
+
+    function getNeighbors(q, r) {
+        const res = [];
+        for (const d of AXIAL_DIRS) {
+            const h = getHex(q + d.q, r + d.r);
+            if (h) res.push(h);
+        }
+        return res;
+    }
+
+    function getUnitAt(q, r) {
+        return GameState.units.find(u => u.hp > 0 && u.q === q && u.r === r) || null;
+    }
+
+    // BFS Reachable Hexes respecting Elevation, Pillars, Occupied hexes, and Flying trait
+    function getReachableHexes(unit) {
+        const startHex = getHex(unit.q, unit.r);
+        if (!startHex) return new Map();
+
+        let moveBudget = unit.move;
+        // Makhotep passive: adjacent Necron allies gain +1 movement
+        if (unit.faction === 'enemy' && unit.id !== 'makhotep') {
+            const adjMakhotep = GameState.units.some(u =>
+                u.hp > 0 && u.id === 'makhotep' && hexDistance(u, unit) === 1
+            );
+            if (adjMakhotep) moveBudget += 1;
+        }
+
+        const isFlying = unit.traits.includes('Flying');
+        const visited = new Map(); // key -> cost
+        visited.set(hexKey(unit.q, unit.r), 0);
+
+        const queue = [{ hex: startHex, cost: 0 }];
+
+        while (queue.length > 0) {
+            queue.sort((a, b) => a.cost - b.cost);
+            const { hex, cost } = queue.shift();
+
+            for (const next of getNeighbors(hex.q, hex.r)) {
+                if (next.terrain === 'pillar' && !isFlying) continue;
+                const occupant = getUnitAt(next.q, next.r);
+                // Cannot pass through enemy units unless flying; cannot end on any occupied unit
+                if (occupant && occupant.faction !== unit.faction && !isFlying) continue;
+
+                // Climbing up 2 levels at once costs 2 movement for non-flyers
+                const elevDiff = next.elevation - hex.elevation;
+                const stepCost = (!isFlying && elevDiff >= 2) ? 2 : 1;
+                const newCost = cost + stepCost;
+
+                if (newCost <= moveBudget) {
+                    const nKey = hexKey(next.q, next.r);
+                    if (!visited.has(nKey) || visited.get(nKey) > newCost) {
+                        visited.set(nKey, newCost);
+                        queue.push({ hex: next, cost: newCost });
+                    }
+                }
+            }
+        }
+
+        // Filter out hexes occupied by friendly units (or pillars for flyers) so unit cannot land on them
+        const validDestinations = new Map();
+        visited.forEach((cost, key) => {
+            const [q, r] = key.split(',').map(Number);
+            const h = getHex(q, r);
+            const occ = getUnitAt(q, r);
+            if (!occ && h.terrain !== 'pillar') {
+                validDestinations.set(key, h);
+            }
+        });
+        return validDestinations;
+    }
+
+    // Compute shortest step-by-step path for smooth movement animation
+    function findPath(unit, targetQ, targetR) {
+        const start = getHex(unit.q, unit.r);
+        const goal = getHex(targetQ, targetR);
+        if (!start || !goal) return [];
+        if (start.q === goal.q && start.r === goal.r) return [start];
+
+        const isFlying = unit.traits.includes('Flying');
+        const cameFrom = new Map();
+        const costSoFar = new Map();
+        const startKey = hexKey(start.q, start.r);
+        costSoFar.set(startKey, 0);
+
+        const frontier = [{ hex: start, priority: 0 }];
+
+        while (frontier.length > 0) {
+            frontier.sort((a, b) => a.priority - b.priority);
+            const current = frontier.shift().hex;
+            if (current.q === goal.q && current.r === goal.r) break;
+
+            for (const next of getNeighbors(current.q, current.r)) {
+                if (next.terrain === 'pillar' && !isFlying) continue;
+                const occ = getUnitAt(next.q, next.r);
+                if (occ && !(next.q === goal.q && next.r === goal.r)) {
+                    if (occ.faction !== unit.faction && !isFlying) continue;
+                }
+                const elevDiff = next.elevation - current.elevation;
+                const stepCost = (!isFlying && elevDiff >= 2) ? 2 : 1;
+                const newCost = costSoFar.get(hexKey(current.q, current.r)) + stepCost;
+                const nKey = hexKey(next.q, next.r);
+
+                if (!costSoFar.has(nKey) || newCost < costSoFar.get(nKey)) {
+                    costSoFar.set(nKey, newCost);
+                    const priority = newCost + hexDistance(next, goal);
+                    frontier.push({ hex: next, priority });
+                    cameFrom.set(nKey, current);
+                }
+            }
+        }
+
+        const path = [];
+        let curr = goal;
+        while (curr) {
+            path.unshift(curr);
+            if (curr.q === start.q && curr.r === start.r) break;
+            curr = cameFrom.get(hexKey(curr.q, curr.r));
+        }
+        return path;
+    }
+
+    // ============================================================================
+    // 2. OFFICIAL WARHAMMER 40K: TACTICUS DAMAGE & COMBAT CALCULATOR
+    // ============================================================================
+    function calculateCombatPrediction(attacker, defender, mode = 'attack', overrideOriginHex = null) {
+        const atkHex = overrideOriginHex || getHex(attacker.q, attacker.r);
+        const defHex = getHex(defender.q, defender.r);
+
+        let baseDamage = attacker.damage;
+        let hits = attacker.hits;
+        let pierce = attacker.pierce;
+        let ignoreCover = false;
+        let damageType = attacker.damageType;
+
+        if (mode === 'ability' && attacker.ability) {
+            switch (attacker.ability.type) {
+                case 'chain_lightning':
+                    baseDamage = Math.round(attacker.damage * 1.15);
+                    hits = 1;
+                    pierce = 1.0;
+                    damageType = 'Psychic';
+                    break;
+                case 'mortis_shot':
+                    baseDamage = Math.round(attacker.damage * 1.55);
+                    hits = 1;
+                    pierce = 1.0;
+                    ignoreCover = true;
+                    damageType = 'Piercing';
+                    break;
+                case 'flame_aoe':
+                    baseDamage = Math.round(attacker.damage * 1.15);
+                    hits = 4;
+                    pierce = 0.30;
+                    damageType = 'Flame';
+                    break;
+                case 'plasma_aoe':
+                    baseDamage = Math.round(attacker.damage * 1.1);
+                    hits = 2;
+                    pierce = 1.0;
+                    damageType = 'Psychic';
+                    break;
+            }
+        }
+
+        const modifiers = [];
+
+        // Official Tacticus Formula: Max(BaseDamage - TargetArmor, BaseDamage * PierceRatio)
+        const armorReduced = baseDamage - defender.armor;
+        const pierceFloor = baseDamage * pierce;
+        let perHitDamage = Math.max(armorReduced, pierceFloor);
+
+        // Elevation Bonus (+50% if attacker elevation > defender elevation)
+        if (atkHex && defHex && atkHex.elevation > defHex.elevation) {
+            perHitDamage *= 1.5;
+            modifiers.push({ label: 'High Ground +50%', color: 'text-amber-300 border-amber-500/50 bg-amber-950/60' });
+        }
+
+        // Terrain Cover Modifiers (unless ignored by Mortis Round)
+        const isRanged = attacker.range > 1 || mode === 'ability';
+        if (!ignoreCover && defHex) {
+            if (defHex.terrain === 'grass' && isRanged) {
+                const origHits = hits;
+                hits = Math.max(1, hits - 2);
+                if (hits < origHits) {
+                    modifiers.push({ label: `Cover -${origHits - hits} Hits`, color: 'text-emerald-300 border-emerald-500/50 bg-emerald-950/60' });
+                }
+            }
+            if (defHex.terrain === 'trench') {
+                perHitDamage *= 0.5;
+                modifiers.push({ label: 'Trench -50% Dmg', color: 'text-sky-300 border-sky-500/50 bg-sky-950/60' });
+            }
+        }
+
+        // Bellator Passive: Adjacent friendly Inceptors grant +15% damage
+        if (attacker.id === 'bellator') {
+            const adjInceptors = GameState.units.filter(u =>
+                u.hp > 0 && u.id === 'inceptor_summon' && hexDistance(u, attacker) === 1
+            ).length;
+            if (adjInceptors > 0) {
+                perHitDamage *= (1 + 0.15 * adjInceptors);
+                modifiers.push({ label: `Inceptor Support +${15 * adjInceptors}%`, color: 'text-sky-300 border-sky-500/50 bg-sky-950/60' });
+            }
+        }
+
+        perHitDamage = Math.max(1, Math.round(perHitDamage));
+        const minTotal = perHitDamage * hits;
+        const maxTotal = (perHitDamage + attacker.critDamage) * hits;
+
+        return {
+            perHitDamage,
+            hits,
+            pierce,
+            damageType,
+            critChance: attacker.critChance,
+            critDamage: attacker.critDamage,
+            minTotal,
+            maxTotal,
+            modifiers
+        };
+    }
+
+    // Executes Tacticus Sequential Crit Chain & Applies Damage
+    function rollCombatDamage(attacker, defender, mode = 'attack') {
+        const pred = calculateCombatPrediction(attacker, defender, mode);
+        let totalDamage = 0;
+        let critCount = 0;
+
+        // Tacticus Sequential Crit Roll: If Hit i crits, Hit i+1 is eligible to crit!
+        let critChainActive = true;
+        for (let i = 0; i < pred.hits; i++) {
+            let hitDmg = pred.perHitDamage;
+            if (critChainActive && Math.random() < pred.critChance) {
+                hitDmg += pred.critDamage;
+                critCount++;
+            } else {
+                critChainActive = false;
+            }
+            totalDamage += hitDmg;
+        }
+
+        return {
+            totalDamage,
+            critCount,
+            hits: pred.hits,
+            modifiers: pred.modifiers
+        };
+    }
+
+    // ============================================================================
+    // 3. THREE.JS 3D PROCEDURAL SCENE, TERRAIN & MINIATURE BUILDER
+    // ============================================================================
+    function initThreeJS() {
+        const container = document.getElementById('canvas-container');
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x090d16);
+        scene.fog = new THREE.FogExp2(0x090d16, 0.028);
+
+        const width = window.innerWidth || document.documentElement.clientWidth || 360;
+        const height = window.innerHeight || document.documentElement.clientHeight || 640;
+        camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
+        updateCameraTransform();
+
+        // Safe WebGLRenderer initialization with graceful mobile Safari/WebView fallback
+        try {
+            renderer = new THREE.WebGLRenderer({
+                antialias: !IS_MOBILE_DEVICE,
+                powerPreference: IS_MOBILE_DEVICE ? 'default' : 'high-performance'
+            });
+        } catch (err) {
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+        }
+        renderer.setSize(width, height);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, IS_MOBILE_DEVICE ? 1.5 : 2));
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.shadowMap.autoUpdate = false; // Manual shadow updates only when units move/spawn/die
+        renderer.shadowMap.needsUpdate = true;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
+        container.appendChild(renderer.domElement);
+
+        // Grimdark Moody Lighting
+        const hemiLight = new THREE.HemisphereLight(0x93c5fd, 0x1e293b, 0.78);
+        scene.add(hemiLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffedd5, 1.35);
+        dirLight.position.set(8, 16, 9);
+        dirLight.castShadow = true;
+        const shadowRes = IS_MOBILE_DEVICE ? 1024 : 2048;
+        dirLight.shadow.mapSize.width = shadowRes;
+        dirLight.shadow.mapSize.height = shadowRes;
+        dirLight.shadow.camera.near = 2;
+        dirLight.shadow.camera.far = 40;
+        const d = 11;
+        dirLight.shadow.camera.left = -d;
+        dirLight.shadow.camera.right = d;
+        dirLight.shadow.camera.top = d;
+        dirLight.shadow.camera.bottom = -d;
+        dirLight.shadow.bias = -0.0005;
+        scene.add(dirLight);
+
+        // Cool rim backlight for dramatic miniature silhouettes
+        const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.55);
+        rimLight.position.set(-9, 10, -10);
+        scene.add(rimLight);
+
+        // Dark Industrial Sub-Floor Void Grid
+        const gridHelper = new THREE.GridHelper(36, 36, 0x1e293b, 0x0f172a);
+        gridHelper.position.y = -0.6;
+        scene.add(gridHelper);
+
+        hexGroup = new THREE.Group();
+        highlightGroup = new THREE.Group();
+        unitGroup = new THREE.Group();
+        fxGroup = new THREE.Group();
+        scene.add(hexGroup, highlightGroup, unitGroup, fxGroup);
+
+        sharedParticleGeo = new THREE.BoxGeometry(0.09, 0.09, 0.09);
+        sharedProjectileGeo = new THREE.SphereGeometry(0.11, 8, 8);
+
+        raycaster = new THREE.Raycaster();
+        pointer = new THREE.Vector2();
+
+        window.addEventListener('resize', onWindowResize);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) requestRender();
+        });
+        setupInputHandlers(renderer.domElement);
+    }
+
+    function buildHexArenaMeshes() {
+        while (hexGroup.children.length) hexGroup.remove(hexGroup.children[0]);
+        while (highlightGroup.children.length) highlightGroup.remove(highlightGroup.children[0]);
+
+        const hexCount = GameState.hexList.length;
+        const baseColors = [new THREE.Color(0x293241), new THREE.Color(0x3b4252), new THREE.Color(0x4c566a)];
+        const dummy = new THREE.Object3D();
+
+        // 1. Single Hardware-Instanced Draw Call for ALL Stepped Hex Columns
+        const unitCylGeo = new THREE.CylinderGeometry(HEX_RADIUS * 0.96, HEX_RADIUS * 0.98, 1.0, 6);
+        const hexColMat = new THREE.MeshStandardMaterial({
+            color: 0xffffff,
+            roughness: 0.78,
+            metalness: 0.22
+        });
+        hexInstancedMesh = new THREE.InstancedMesh(unitCylGeo, hexColMat, hexCount);
+        hexInstancedMesh.receiveShadow = true;
+        hexInstancedMesh.castShadow = true;
+        hexGroup.add(hexInstancedMesh);
+
+        // 2. Single Hardware-Instanced Draw Call for ALL Metallic Hex Top Bevel Rims
+        const ringGeo = new THREE.RingGeometry(HEX_RADIUS * 0.87, HEX_RADIUS * 0.95, 6);
+        ringGeo.rotateX(-Math.PI / 2);
+        ringGeo.rotateY(Math.PI / 6);
+        const ringMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.35,
+            side: THREE.DoubleSide
+        });
+        hexRimInstancedMesh = new THREE.InstancedMesh(ringGeo, ringMat, hexCount);
+        hexGroup.add(hexRimInstancedMesh);
+
+        // Shared Overlay Geometries for Highlights & Fire
+        const sharedHlGeo = new THREE.CircleGeometry(HEX_RADIUS * 0.86, 6);
+        sharedHlGeo.rotateX(-Math.PI / 2);
+        sharedHlGeo.rotateY(Math.PI / 6);
+
+        const sharedFireGeo = new THREE.RingGeometry(0.15, HEX_RADIUS * 0.8, 6);
+        sharedFireGeo.rotateX(-Math.PI / 2);
+
+        // Shared Prop Geometries & Materials
+        const barMat = getCachedMaterial('trenchBar', () => new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.7, metalness: 0.4 }));
+        const barGeo = new THREE.BoxGeometry(0.65, 0.22, 0.14);
+        const pilMat = getCachedMaterial('pillarStone', () => new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.6, metalness: 0.5 }));
+        const pilGeo = new THREE.CylinderGeometry(0.45, 0.55, 1.35, 6);
+        const capMat = getCachedMaterial('pillarGold', () => new THREE.MeshStandardMaterial({ color: 0xb45309, emissive: 0x451a03, roughness: 0.4, metalness: 0.8 }));
+        const capGeo = new THREE.OctahedronGeometry(0.32, 0);
+
+        const grassTransforms = [];
+        const rimGold = new THREE.Color(0xd97706);
+        const rimSlate = new THREE.Color(0x64748b);
+
+        GameState.hexList.forEach((cell, idx) => {
+            const height = 0.55 + cell.elevation * ELEVATION_STEP;
+            const pos = hexToWorld(cell.q, cell.r, 0);
+            const topY = cell.elevation * ELEVATION_STEP;
+
+            // Populate Hex Column Instance
+            dummy.position.set(pos.x, height / 2 - 0.55, pos.z);
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.set(1, height, 1);
+            dummy.updateMatrix();
+            hexInstancedMesh.setMatrixAt(idx, dummy.matrix);
+            hexInstancedMesh.setColorAt(idx, baseColors[cell.elevation]);
+
+            // Populate Top Rim Instance
+            dummy.position.set(pos.x, topY + 0.006, pos.z);
+            dummy.scale.set(1, 1, 1);
+            dummy.updateMatrix();
+            hexRimInstancedMesh.setMatrixAt(idx, dummy.matrix);
+            hexRimInstancedMesh.setColorAt(idx, cell.elevation === 2 ? rimGold : rimSlate);
+
+            // Terrain Props
+            if (cell.terrain === 'grass') {
+                for (let i = 0; i < 9; i++) {
+                    const angle = (i / 9) * Math.PI * 2;
+                    const rad = 0.25 + (i % 3) * 0.2;
+                    grassTransforms.push({
+                        x: pos.x + Math.cos(angle) * rad,
+                        y: topY + 0.2,
+                        z: pos.z + Math.sin(angle) * rad,
+                        rotZ: ((idx * 7 + i * 13) % 10 - 5) * 0.05
+                    });
+                }
+            } else if (cell.terrain === 'trench') {
+                for (let i = 0; i < 6; i++) {
+                    if (i === 1 || i === 4) continue;
+                    const ang = (i / 6) * Math.PI * 2 + Math.PI / 6;
+                    const wall = new THREE.Mesh(barGeo, barMat);
+                    wall.position.set(pos.x + Math.cos(ang) * 0.68, topY + 0.11, pos.z + Math.sin(ang) * 0.68);
+                    wall.rotation.y = -ang + Math.PI / 2;
+                    wall.castShadow = true;
+                    hexGroup.add(wall);
+                }
+            } else if (cell.terrain === 'pillar') {
+                const basePillar = new THREE.Mesh(pilGeo, pilMat);
+                basePillar.position.set(pos.x, topY + 0.67, pos.z);
+                basePillar.castShadow = true;
+                basePillar.receiveShadow = true;
+                hexGroup.add(basePillar);
+
+                const cap = new THREE.Mesh(capGeo, capMat);
+                cap.position.set(pos.x, topY + 1.48, pos.z);
+                hexGroup.add(cap);
+            }
+
+            // Interactive Highlight Overlay Hex
+            const hlMat = new THREE.MeshBasicMaterial({
+                color: 0x38bdf8,
+                transparent: true,
+                opacity: 0.0,
+                depthWrite: false
+            });
+            const hlMesh = new THREE.Mesh(sharedHlGeo, hlMat);
+            hlMesh.position.set(pos.x, topY + 0.015, pos.z);
+            highlightGroup.add(hlMesh);
+            cell.highlightMesh = hlMesh;
+
+            // Fire Hazard Overlay Mesh
+            const fireMat = new THREE.MeshBasicMaterial({
+                color: 0xf97316,
+                transparent: true,
+                opacity: 0.0,
+                side: THREE.DoubleSide,
+                depthWrite: false
+            });
+            const fireMesh = new THREE.Mesh(sharedFireGeo, fireMat);
+            fireMesh.position.set(pos.x, topY + 0.022, pos.z);
+            highlightGroup.add(fireMesh);
+            cell.fireMesh = fireMesh;
+        });
+
+        hexInstancedMesh.instanceMatrix.needsUpdate = true;
+        if (hexInstancedMesh.instanceColor) hexInstancedMesh.instanceColor.needsUpdate = true;
+        hexRimInstancedMesh.instanceMatrix.needsUpdate = true;
+        if (hexRimInstancedMesh.instanceColor) hexRimInstancedMesh.instanceColor.needsUpdate = true;
+
+        // 3. Single Hardware-Instanced Draw Call for ALL Tall Grass Cover Tufts
+        if (grassTransforms.length > 0) {
+            const bladeGeo = new THREE.ConeGeometry(0.07, 0.42, 4);
+            const bladeMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.85 });
+            grassInstancedMesh = new THREE.InstancedMesh(bladeGeo, bladeMat, grassTransforms.length);
+            grassTransforms.forEach((gt, i) => {
+                dummy.position.set(gt.x, gt.y, gt.z);
+                dummy.rotation.set(0, 0, gt.rotZ);
+                dummy.scale.set(1, 1, 1);
+                dummy.updateMatrix();
+                grassInstancedMesh.setMatrixAt(i, dummy.matrix);
+            });
+            grassInstancedMesh.instanceMatrix.needsUpdate = true;
+            hexGroup.add(grassInstancedMesh);
+        }
+
+        requestRender(true);
+    }
+
+    // Procedural Articulated 3D Miniature Builder (Space Marines vs Necrons)
+    function createUnitMiniatureMesh(unit) {
+        const group = new THREE.Group();
+
+        // Shared Tactical Base Rim
+        const baseColor = unit.faction === 'player' ? 0x0284c7 : 0x059669;
+        const baseMesh = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.54, 0.58, 0.1, 20),
+            getCachedMaterial('unitBaseDark', () => new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.5, metalness: 0.6 }))
+        );
+        baseMesh.position.y = 0.05;
+        baseMesh.castShadow = true;
+        baseMesh.receiveShadow = true;
+        group.add(baseMesh);
+
+        const factionRing = new THREE.Mesh(
+            new THREE.RingGeometry(0.46, 0.55, 20),
+            getCachedMaterial(`factionRing_${baseColor}`, () => new THREE.MeshBasicMaterial({ color: baseColor, side: THREE.DoubleSide }))
+        );
+        factionRing.rotation.x = -Math.PI / 2;
+        factionRing.position.y = 0.105;
+        group.add(factionRing);
+
+        // Selection Halo (hidden by default)
+        const selHalo = new THREE.Mesh(
+            new THREE.RingGeometry(0.60, 0.72, 20),
+            new THREE.MeshBasicMaterial({ color: 0xfacc15, side: THREE.DoubleSide, transparent: true, opacity: 0 })
+        );
+        selHalo.rotation.x = -Math.PI / 2;
+        selHalo.position.y = 0.04;
+        group.add(selHalo);
+        unit.selectionHalo = selHalo;
+
+        const armorMat = getCachedMaterial(`armor_${unit.color}`, () => new THREE.MeshStandardMaterial({
+            color: unit.color,
+            roughness: 0.35,
+            metalness: 0.65
+        }));
+        const trimMat = getCachedMaterial(`trim_${unit.faction}_${unit.trimColor}`, () => new THREE.MeshStandardMaterial({
+            color: unit.trimColor,
+            emissive: unit.faction === 'enemy' ? unit.trimColor : 0x000000,
+            emissiveIntensity: unit.faction === 'enemy' ? 0.35 : 0,
+            roughness: 0.3,
+            metalness: 0.8
+        }));
+
+        const bodyGroup = new THREE.Group();
+        // Hover offset for Flying units
+        const hoverOffset = unit.traits.includes('Flying') ? 0.28 : 0;
+        bodyGroup.position.y = 0.1 + hoverOffset;
+
+        if (unit.faction === 'player') {
+            // PRIMARIS SPACE MARINE / SISTER SILHOUETTE
+            // Legs
+            const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.48, 8), armorMat);
+            legL.position.set(-0.15, 0.24, 0);
+            const legR = legL.clone();
+            legR.position.set(0.15, 0.24, 0);
+            bodyGroup.add(legL, legR);
+
+            // Armored Torso
+            const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.20, 0.52, 8), armorMat);
+            torso.position.y = 0.72;
+            torso.castShadow = true;
+            bodyGroup.add(torso);
+
+            // Iconic Oversized Pauldrons (Shoulder Pads)
+            const pauldronGeo = new THREE.SphereGeometry(0.21, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.6);
+            const paulL = new THREE.Mesh(pauldronGeo, armorMat);
+            paulL.position.set(-0.34, 0.86, 0);
+            paulL.rotation.z = 0.35;
+            const paulR = paulL.clone();
+            paulR.position.set(0.34, 0.86, 0);
+            paulR.rotation.z = -0.35;
+            bodyGroup.add(paulL, paulR);
+
+            // Helmet & Visor
+            const head = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), armorMat);
+            head.position.y = 1.12;
+            const visor = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.06, 0.14), trimMat);
+            visor.position.set(0, 1.12, 0.11);
+            bodyGroup.add(head, visor);
+
+            // Jump Pack for Flying units (Bellator / Inceptors)
+            if (unit.traits.includes('Flying')) {
+                const pack = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.44, 0.26), armorMat);
+                pack.position.set(0, 0.80, -0.24);
+                const thrusterL = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.11, 0.24, 8), trimMat);
+                thrusterL.position.set(-0.15, 0.58, -0.26);
+                const thrusterR = thrusterL.clone();
+                thrusterR.position.set(0.15, 0.58, -0.26);
+                bodyGroup.add(pack, thrusterL, thrusterR);
+            }
+
+            // Weapon Silhouette
+            if (unit.range > 1) {
+                // Rifle / Staff / Flamer
+                const gun = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.14, 0.68), trimMat);
+                gun.position.set(0.28, 0.72, 0.28);
+                bodyGroup.add(gun);
+            } else {
+                // Chainsword / Narthecium Blade
+                const blade = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.62, 0.12), trimMat);
+                blade.position.set(0.36, 0.75, 0.22);
+                blade.rotation.x = 0.45;
+                bodyGroup.add(blade);
+            }
+        } else {
+            // NECRON XENOS SILHOUETTE
+            if (unit.id === 'aleph') {
+                // Canoptek Spyder Chassis
+                const carapace = new THREE.Mesh(new THREE.SphereGeometry(0.40, 12, 10), armorMat);
+                carapace.scale.set(1.1, 0.65, 1.3);
+                carapace.position.y = 0.55;
+                carapace.castShadow = true;
+                const core = new THREE.Mesh(new THREE.OctahedronGeometry(0.18), trimMat);
+                core.position.set(0, 0.68, 0.35);
+                bodyGroup.add(carapace, core);
+
+                // Mechanical Spider Legs
+                for (let s of [-1, 1]) {
+                    for (let zOff of [-0.22, 0.05, 0.3]) {
+                        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.06, 0.06), trimMat);
+                        leg.position.set(s * 0.42, 0.36, zOff);
+                        leg.rotation.z = -s * 0.5;
+                        bodyGroup.add(leg);
+                    }
+                }
+            } else {
+                // Skeletal Necron Lord / Destroyer
+                const pelvis = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.10, 0.45, 6), armorMat);
+                pelvis.position.y = 0.28;
+                const ribcage = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.58, 6), armorMat);
+                ribcage.rotation.x = Math.PI;
+                ribcage.position.y = 0.78;
+                ribcage.castShadow = true;
+
+                // Necron Death Mask Skull
+                const skull = new THREE.Mesh(new THREE.OctahedronGeometry(0.16, 1), trimMat);
+                skull.position.y = 1.16;
+
+                // Glowing Gauss Staff / Hyperphase Glaive
+                const staff = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1.25, 6), trimMat);
+                staff.position.set(0.36, 0.75, 0.18);
+                staff.rotation.x = 0.25;
+
+                bodyGroup.add(pelvis, ribcage, skull, staff);
+            }
+        }
+
+        group.add(bodyGroup);
+        unit.bodyMesh = bodyGroup;
+        unit.mesh = group;
+        unitGroup.add(group);
+    }
+
+    // ============================================================================
+    // 4. SQUAD DEPLOYMENT & TURN STATE MANAGEMENT
+    // ============================================================================
+    function deploySquads() {
+        while (unitGroup.children.length) unitGroup.remove(unitGroup.children[0]);
+        GameState.units = [];
+
+        const initialPlacements = [
+            // Player Ultramarines (South Edge)
+            { template: 'bellator', q: -1, r: 2 },
+            { template: 'varro',    q: 0,  r: 2 },
+            { template: 'certus',   q: -2, r: 3 },
+            { template: 'vindicta', q: 1,  r: 2 },
+            { template: 'incisus',  q: -1, r: 3 },
+
+            // Enemy Necrons (North Ridge)
+            { template: 'anuphet',  q: 0,  r: -2 },
+            { template: 'aleph',    q: 2,  r: -2 },
+            { template: 'imospekh', q: 0,  r: -3 },
+            { template: 'thutmose', q: 2,  r: -3 },
+            { template: 'makhotep', q: -1, r: -2 }
+        ];
+
+        initialPlacements.forEach((p, idx) => {
+            spawnUnit(p.template, p.q, p.r, `unit_${idx}`);
+        });
+    }
+
+    function spawnUnit(templateKey, q, r, uid) {
+        const tpl = UNIT_TEMPLATES[templateKey];
+        const unit = {
+            uid,
+            id: tpl.id,
+            name: tpl.name,
+            role: tpl.role,
+            faction: tpl.faction,
+            color: tpl.color,
+            trimColor: tpl.trimColor,
+            badgeText: tpl.badgeText,
+            maxHp: tpl.maxHp,
+            hp: tpl.maxHp,
+            armor: tpl.armor,
+            move: tpl.move,
+            range: tpl.range,
+            damage: tpl.damage,
+            hits: tpl.hits,
+            pierce: tpl.pierce,
+            damageType: tpl.damageType,
+            critChance: tpl.critChance,
+            critDamage: tpl.critDamage,
+            traits: [...tpl.traits],
+            ability: tpl.ability ? { ...tpl.ability, currentCooldown: 0 } : null,
+            q,
+            r,
+            hasMoved: false,
+            hasActed: false,
+            overwatchActive: false,
+            mesh: null,
+            bodyMesh: null,
+            selectionHalo: null
+        };
+
+        createUnitMiniatureMesh(unit);
+        const hex = getHex(q, r);
+        const worldPos = hexToWorld(q, r, hex ? hex.elevation : 0);
+        unit.mesh.position.copy(worldPos);
+        // Face towards center of battlefield
+        unit.mesh.rotation.y = unit.faction === 'player' ? Math.PI : 0;
+
+        GameState.units.push(unit);
+        requestRender(true);
+        return unit;
+    }
+
+    function startPlayerTurn() {
+        GameState.phase = 'player';
+        GameState.selectedUnitId = null;
+        GameState.abilityMode = false;
+        GameState.pendingTarget = null;
+        GameState.moveSnapshot = null;
+
+        // Process Start-of-Turn Effects for Player Units
+        GameState.units.filter(u => u.hp > 0 && u.faction === 'player').forEach(u => {
+            u.hasMoved = false;
+            u.hasActed = false;
+            u.overwatchActive = false;
+            if (u.ability && u.ability.currentCooldown > 0) {
+                u.ability.currentCooldown--;
+            }
+            // Apply Fire Hex Burn Damage
+            const h = getHex(u.q, u.r);
+            if (h && h.fireTurns > 0) {
+                applyDamageToUnit(u, 18, 'BURN!');
+            }
+        });
+
+        // Tick down fire hexes
+        GameState.hexMap.forEach(h => {
+            if (h.fireTurns > 0) h.fireTurns--;
+        });
+
+        // Auto-select first ready Ultramarine
+        const firstReady = GameState.units.find(u => u.hp > 0 && u.faction === 'player');
+        if (firstReady) {
+            selectUnit(firstReady.uid, true);
+        }
+
+        updateAllHighlights();
+        updateHUD();
+        setBanner('IMPERIAL TURN — Select an Ultramarine to move or strike');
+    }
+
+    function playerEndTurn() {
+        if (GameState.phase !== 'player') return;
+
+        // Activate Overwatch for any Player Overwatch unit that didn't attack this turn
+        GameState.units.filter(u => u.hp > 0 && u.faction === 'player').forEach(u => {
+            if (u.traits.includes('Overwatch') && !u.hasActed) {
+                u.overwatchActive = true;
+                spawnFloatingPopup(u, 'OVERWATCH READY', '#38bdf8');
+                addCombatLog(`${u.name} enters Overwatch stance.`);
+            }
+        });
+
+        GameState.selectedUnitId = null;
+        GameState.abilityMode = false;
+        GameState.pendingTarget = null;
+        GameState.moveSnapshot = null;
+        updateAllHighlights();
+        updateHUD();
+
+        runEnemyAITurn();
+    }
+
+    function checkAutoEndPlayerTurn() {
+        if (GameState.phase !== 'player') return;
+        const anyRemaining = GameState.units.some(u => u.hp > 0 && u.faction === 'player' && !u.hasActed);
+        if (!anyRemaining) {
+            setTimeout(() => {
+                if (GameState.phase === 'player') playerEndTurn();
+            }, 450);
+        } else {
+            // Select next available unit automatically
+            const nextUnit = GameState.units.find(u => u.hp > 0 && u.faction === 'player' && !u.hasActed);
+            if (nextUnit) selectUnit(nextUnit.uid);
+        }
+    }
+
+    // ============================================================================
+    // 5. SELECTION, MOVEMENT, OVERWATCH & ACTION EXECUTION
+    // ============================================================================
+    function selectUnit(uid, isAutoSelect = false) {
+        if (GameState.phase !== 'player') return;
+        const unit = GameState.units.find(u => u.uid === uid && u.hp > 0);
+        if (!unit) return;
+
+        // If switching away from a unit that moved but hasn't acted, lock its move
+        if (GameState.moveSnapshot && GameState.moveSnapshot.unitId !== uid) {
+            GameState.moveSnapshot = null;
+        }
+
+        GameState.selectedUnitId = uid;
+        GameState.abilityMode = false;
+        GameState.pendingTarget = null;
+
+        if (!isAutoSelect && GameState.tutorial.active && !GameState.tutorial.seenHints.has('unit_selected')) {
+            triggerReactiveHint(
+                'Unit Selected!',
+                `<strong>Blue hexes</strong> show where ${unit.name} can move. <strong>Red hexes</strong> mark enemies in weapon range. Tap any stat chip below to see how it works!`
+            );
+            GameState.tutorial.seenHints.add('unit_selected');
+        }
+
+        updateAllHighlights();
+        updateHUD();
+    }
+
+    function undoUnitMove() {
+        if (!GameState.moveSnapshot || GameState.phase !== 'player') return;
+        const unit = GameState.units.find(u => u.uid === GameState.moveSnapshot.unitId);
+        if (!unit) return;
+
+        unit.q = GameState.moveSnapshot.fromQ;
+        unit.r = GameState.moveSnapshot.fromR;
+        unit.hasMoved = false;
+        const hex = getHex(unit.q, unit.r);
+        unit.mesh.position.copy(hexToWorld(unit.q, unit.r, hex.elevation));
+
+        GameState.moveSnapshot = null;
+        GameState.abilityMode = false;
+        GameState.pendingTarget = null;
+
+        updateAllHighlights();
+        updateHUD();
+        requestRender(true);
+        setBanner(`${unit.name} returned to previous position.`);
+    }
+
+    function unitWaitAction() {
+        const unit = GameState.units.find(u => u.uid === GameState.selectedUnitId);
+        if (!unit || unit.faction !== 'player' || GameState.phase !== 'player') return;
+
+        unit.hasMoved = true;
+        unit.hasActed = true;
+        GameState.moveSnapshot = null;
+        GameState.abilityMode = false;
+        GameState.pendingTarget = null;
+
+        if (unit.traits.includes('Overwatch')) {
+            unit.overwatchActive = true;
+            spawnFloatingPopup(unit, 'OVERWATCH', '#38bdf8');
+            addCombatLog(`${unit.name} holds position on Overwatch.`);
+        } else {
+            addCombatLog(`${unit.name} holds position.`);
+        }
+
+        updateAllHighlights();
+        updateHUD();
+        checkAutoEndPlayerTurn();
+    }
+
+    function toggleAbilityMode() {
+        const unit = GameState.units.find(u => u.uid === GameState.selectedUnitId);
+        if (!unit || unit.faction !== 'player' || unit.hasActed || !unit.ability) return;
+        if (unit.ability.currentCooldown > 0) return;
+
+        GameState.abilityMode = !GameState.abilityMode;
+        GameState.pendingTarget = null;
+
+        if (GameState.abilityMode) {
+            setBanner(`ABILITY: ${unit.ability.name} — Select a highlighted target hex`);
+        } else {
+            setBanner(`${unit.name} ready.`);
+        }
+
+        updateAllHighlights();
+        updateHUD();
+    }
+
+    // Smooth Animated Unit Movement + Overwatch Interception Check
+    async function animateUnitMove(unit, destQ, destR) {
+        const prevPhase = GameState.phase;
+        GameState.phase = 'animating';
+        updateAllHighlights();
+
+        const path = findPath(unit, destQ, destR);
+        const speed = 260 / GameState.speedMultiplier;
+
+        for (let i = 1; i < path.length; i++) {
+            const stepHex = path[i];
+            const startPos = unit.mesh.position.clone();
+            const endPos = hexToWorld(stepHex.q, stepHex.r, stepHex.elevation);
+
+            // Rotate miniature toward movement direction
+            const dir = new THREE.Vector3().subVectors(endPos, startPos);
+            if (dir.lengthSq() > 0.001) {
+                unit.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+            }
+
+            await tweenAction(speed, (t) => {
+                unit.mesh.position.lerpVectors(startPos, endPos, t);
+                // Subtle hop arc
+                unit.mesh.position.y += Math.sin(t * Math.PI) * 0.22;
+            });
+
+            unit.q = stepHex.q;
+            unit.r = stepHex.r;
+
+            // Check Enemy Overwatch Interception when entering their range!
+            const watchers = GameState.units.filter(w =>
+                w.hp > 0 && w.faction !== unit.faction && w.overwatchActive &&
+                hexDistance(w, unit) <= w.range
+            );
+
+            for (const watcher of watchers) {
+                if (unit.hp <= 0) break;
+                if (GameState.tutorial.active && !GameState.tutorial.seenHints.has('overwatch_triggered')) {
+                    triggerReactiveHint(
+                        'Overwatch Reaction Fire!',
+                        `${watcher.name} had <strong>Overwatch</strong> active and automatically fired when ${unit.name} entered range! Use <strong>Danger</strong> mode to spot threat zones.`
+                    );
+                    GameState.tutorial.seenHints.add('overwatch_triggered');
+                }
+                // Single Overwatch units lose Overwatch after firing; Multi-Overwatch (Imospekh) keeps it!
+                if (!watcher.traits.includes('Multi-Overwatch')) {
+                    watcher.overwatchActive = false;
+                }
+                spawnFloatingPopup(watcher, 'OVERWATCH!', '#f43f5e');
+                addCombatLog(`${watcher.name} triggers Overwatch against ${unit.name}!`);
+                await executeStrikeAnimation(watcher, unit, 'attack');
+            }
+
+            if (unit.hp <= 0) break;
+        }
+
+        unit.hasMoved = true;
+        GameState.phase = prevPhase;
+        requestRender(true);
+        checkBattleOutcome();
+    }
+
+    // ============================================================================
+    // 6. ATTACK & ACTIVE ABILITY EXECUTION + 3D VISUAL EFFECTS
+    // ============================================================================
+    function openTargetPreview(attacker, targetHex, mode) {
+        const targetUnit = getUnitAt(targetHex.q, targetHex.r);
+        GameState.pendingTarget = { targetHex, mode };
+
+        if (GameState.tutorial.active && !GameState.tutorial.seenHints.has('combat_preview')) {
+            triggerReactiveHint(
+                'Combat Forecast Ready',
+                'Check the <strong>Est. Total Damage</strong> and terrain badges on the right before tapping <strong>EXECUTE STRIKE</strong>. Higher elevation gives +50% damage!'
+            );
+            GameState.tutorial.seenHints.add('combat_preview');
+        }
+
+        const card = document.getElementById('combat-preview-card');
+        const badge = document.getElementById('preview-mode-badge');
+        const nameEl = document.getElementById('preview-target-name');
+        const hpEl = document.getElementById('preview-target-hp');
+        const dmgEl = document.getElementById('preview-dmg-range');
+        const hitsEl = document.getElementById('preview-hits-info');
+        const critEl = document.getElementById('preview-crit-info');
+        const modsEl = document.getElementById('preview-modifiers');
+
+        modsEl.innerHTML = '';
+
+        if (mode === 'ability' && attacker.ability.type === 'summon') {
+            badge.textContent = 'REINFORCEMENT DROP';
+            badge.className = 'text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-sky-900/80 text-sky-200 border border-sky-500/50';
+            nameEl.textContent = 'Deploy Inceptor Brother';
+            hpEl.textContent = '85 / 85 HP';
+            dmgEl.textContent = 'SUMMON';
+            hitsEl.textContent = '5x Chain (20% Pierce)';
+            critEl.textContent = 'Flying';
+            modsEl.innerHTML = `<span class="text-[10px] px-2 py-0.5 rounded border text-sky-300 border-sky-500/50 bg-sky-950/60">+15% Bellator Aura</span>`;
+        } else if (mode === 'ability' && attacker.ability.type === 'heal') {
+            const ally = targetUnit || attacker;
+            badge.textContent = 'APOTHECARY NARTHECIUM';
+            badge.className = 'text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-900/80 text-emerald-200 border border-emerald-500/50';
+            nameEl.textContent = ally.name;
+            hpEl.textContent = `${ally.hp} / ${ally.maxHp}`;
+            dmgEl.textContent = '+75 HP';
+            hitsEl.textContent = 'Field Surgery';
+            critEl.textContent = '100% Reliable';
+        } else if (targetUnit) {
+            const pred = calculateCombatPrediction(attacker, targetUnit, mode);
+            badge.textContent = mode === 'ability' ? attacker.ability.name.toUpperCase() : 'STANDARD STRIKE';
+            badge.className = 'text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-rose-900/80 text-rose-200 border border-rose-500/50';
+            nameEl.textContent = targetUnit.name;
+            hpEl.textContent = `${targetUnit.hp} / ${targetUnit.maxHp}`;
+            dmgEl.textContent = `${pred.minTotal} – ${pred.maxTotal}`;
+            hitsEl.textContent = `${pred.hits}x ${pred.damageType} (${Math.round(pred.pierce * 100)}% Pierce)`;
+            critEl.textContent = `${Math.round(pred.critChance * 100)}% Crit (+${pred.critDamage})`;
+
+            pred.modifiers.forEach(m => {
+                const span = document.createElement('span');
+                span.className = `text-[10px] px-2 py-0.5 rounded border font-semibold ${m.color}`;
+                span.textContent = m.label;
+                modsEl.appendChild(span);
+            });
+
+            if (mode === 'ability' && (attacker.ability.type === 'flame_aoe' || attacker.ability.type === 'chain_lightning')) {
+                const span = document.createElement('span');
+                span.className = 'text-[10px] px-2 py-0.5 rounded border font-semibold text-amber-300 border-amber-500/50 bg-amber-950/60';
+                span.textContent = 'Hits Adjacent Enemies!';
+                modsEl.appendChild(span);
+            }
+        }
+
+        card.classList.remove('hidden');
+    }
+
+    function cancelTargetPreview() {
+        GameState.pendingTarget = null;
+        document.getElementById('combat-preview-card').classList.add('hidden');
+    }
+
+    async function confirmAttackAction() {
+        if (!GameState.pendingTarget || GameState.phase !== 'player') return;
+        const attacker = GameState.units.find(u => u.uid === GameState.selectedUnitId);
+        if (!attacker) return;
+
+        const { targetHex, mode } = GameState.pendingTarget;
+        cancelTargetPreview();
+
+        GameState.phase = 'animating';
+        GameState.moveSnapshot = null;
+        updateAllHighlights();
+
+        await resolveUnitAction(attacker, targetHex, mode);
+
+        attacker.hasMoved = true;
+        attacker.hasActed = true;
+        if (mode === 'ability' && attacker.ability) {
+            attacker.ability.currentCooldown = attacker.ability.cooldown;
+        }
+        GameState.abilityMode = false;
+
+        if (!checkBattleOutcome()) {
+            GameState.phase = 'player';
+            updateAllHighlights();
+            updateHUD();
+            checkAutoEndPlayerTurn();
+        }
+    }
+
+    async function resolveUnitAction(attacker, targetHex, mode) {
+        const targetUnit = getUnitAt(targetHex.q, targetHex.r);
+
+        if (mode === 'ability' && attacker.ability) {
+            const type = attacker.ability.type;
+
+            if (type === 'summon' || type === 'summon_necron') {
+                const summonKey = type === 'summon' ? 'inceptor_summon' : 'necron_warrior';
+                const summoned = spawnUnit(summonKey, targetHex.q, targetHex.r, `summon_${Date.now()}`);
+                summoned.hasMoved = true;
+                summoned.hasActed = true;
+                spawnBurstParticles(hexToWorld(targetHex.q, targetHex.r, targetHex.elevation), 0x38bdf8, 22);
+                spawnFloatingPopup(summoned, 'REINFORCEMENTS!', '#38bdf8');
+                addCombatLog(`${attacker.name} deploys ${summoned.name}!`);
+                await delay(450);
+                return;
+            }
+
+            if (type === 'heal') {
+                const patient = targetUnit || attacker;
+                const healAmount = 75;
+                patient.hp = Math.min(patient.maxHp, patient.hp + healAmount);
+                spawnBurstParticles(patient.mesh.position, 0x10b981, 20);
+                spawnFloatingPopup(patient, `+${healAmount} HP`, '#34d399');
+                addCombatLog(`${attacker.name} restores ${healAmount} HP to ${patient.name}.`);
+                await delay(450);
+                return;
+            }
+
+            if (type === 'chain_lightning') {
+                if (targetUnit) {
+                    await executeStrikeAnimation(attacker, targetUnit, 'ability');
+                    // Jump to up to 2 adjacent enemies
+                    const adjEnemies = GameState.units.filter(u =>
+                        u.hp > 0 && u.faction !== attacker.faction && u.uid !== targetUnit.uid &&
+                        hexDistance(u, targetUnit) === 1
+                    ).slice(0, 2);
+                    for (const secondary of adjEnemies) {
+                        await executeStrikeAnimation(attacker, secondary, 'ability');
+                    }
+                }
+                return;
+            }
+
+            if (type === 'flame_aoe' || type === 'plasma_aoe') {
+                // Ignite or blast target hex + all adjacent hexes
+                const areaHexes = [targetHex, ...getNeighbors(targetHex.q, targetHex.r)];
+                for (const h of areaHexes) {
+                    if (type === 'flame_aoe') h.fireTurns = 2;
+                    spawnBurstParticles(hexToWorld(h.q, h.r, h.elevation), type === 'flame_aoe' ? 0xf97316 : 0x10b981, 14);
+                    const victim = getUnitAt(h.q, h.r);
+                    if (victim && victim.faction !== attacker.faction) {
+                        await executeStrikeAnimation(attacker, victim, 'ability');
+                    }
+                }
+                addCombatLog(`${attacker.name} unleashes ${attacker.ability.name}!`);
+                return;
+            }
+        }
+
+        // Standard Strike or Single-Target Ability (Mortis Round)
+        if (targetUnit) {
+            // Vindicta standard flame attack also ignites target hex
+            if (attacker.traits.includes('Incendiary')) {
+                targetHex.fireTurns = 2;
+            }
+            await executeStrikeAnimation(attacker, targetUnit, mode);
+        }
+    }
+
+    async function executeStrikeAnimation(attacker, defender, mode = 'attack') {
+        if (!attacker || !defender || defender.hp <= 0) return;
+
+        // Face target
+        const startPos = attacker.mesh.position.clone();
+        const targetPos = defender.mesh.position.clone();
+        const dir = new THREE.Vector3().subVectors(targetPos, startPos);
+        if (dir.lengthSq() > 0.001) {
+            attacker.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+        }
+
+        const isRanged = attacker.range > 1 || mode === 'ability';
+        const fxColor = attacker.damageType === 'Psychic' ? 0x38bdf8 :
+                        attacker.damageType === 'Flame' ? 0xf97316 :
+                        attacker.faction === 'enemy' ? 0x10b981 : 0xfacc15;
+
+        if (!isRanged) {
+            // Melee Lunge Animation
+            const lungeTarget = startPos.clone().lerp(targetPos, 0.45);
+            await tweenAction(140 / GameState.speedMultiplier, (t) => {
+                attacker.mesh.position.lerpVectors(startPos, lungeTarget, t);
+            });
+            spawnBurstParticles(targetPos.clone().add(new THREE.Vector3(0, 0.7, 0)), fxColor, 16);
+            await tweenAction(140 / GameState.speedMultiplier, (t) => {
+                attacker.mesh.position.lerpVectors(lungeTarget, startPos, t);
+            });
+        } else {
+            // Ranged Projectile / Psychic Beam
+            await spawnProjectileEffect(
+                startPos.clone().add(new THREE.Vector3(0, 0.85, 0)),
+                targetPos.clone().add(new THREE.Vector3(0, 0.75, 0)),
+                fxColor
+            );
+            spawnBurstParticles(targetPos.clone().add(new THREE.Vector3(0, 0.75, 0)), fxColor, 18);
+        }
+
+        // Compute Official Tacticus Damage
+        const result = rollCombatDamage(attacker, defender, mode);
+        if (attacker.faction === 'player') {
+            GameState.stats.damageDealt += result.totalDamage;
+        }
+
+        const label = result.critCount > 0 ? `-${result.totalDamage} CRIT!` : `-${result.totalDamage}`;
+        applyDamageToUnit(defender, result.totalDamage, label, result.critCount > 0 ? '#facc15' : '#f87171');
+        addCombatLog(`${attacker.name} hits ${defender.name} for ${result.totalDamage} dmg (${result.hits} hits${result.critCount ? `, ${result.critCount} crit` : ''}).`);
+
+        await delay(220 / GameState.speedMultiplier);
+    }
+
+    function applyDamageToUnit(unit, amount, popupText, color = '#f87171') {
+        unit.hp = Math.max(0, unit.hp - amount);
+        spawnFloatingPopup(unit, popupText, color);
+
+        // Hit recoil shake
+        if (unit.mesh) {
+            const origX = unit.mesh.position.x;
+            unit.mesh.position.x += 0.12;
+            setTimeout(() => { if (unit.mesh) unit.mesh.position.x = origX; }, 90);
+        }
+
+        if (unit.hp <= 0) {
+            if (unit.faction === 'enemy') GameState.stats.kills++;
+            addCombatLog(`☠ ${unit.name} has been slain!`);
+            spawnBurstParticles(unit.mesh.position.clone().add(new THREE.Vector3(0, 0.6, 0)), 0xef4444, 24);
+            unitGroup.remove(unit.mesh);
+            requestRender(true);
+        }
+        updateHUD();
+    }
+
+    // ============================================================================
+    // 7. 3D PARTICLE EFFECTS, HEX HIGHLIGHTS & DANGER ZONE OVERLAYS
+    // ============================================================================
+    function spawnBurstParticles(origin, colorHex, count = 16) {
+        if (!fxGroup) return;
+        const mat = getCachedMaterial(`particle_${colorHex}`, () => new THREE.MeshBasicMaterial({ color: colorHex }));
+        for (let i = 0; i < count; i++) {
+            const mesh = new THREE.Mesh(sharedParticleGeo, mat);
+            mesh.position.copy(origin);
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 1.2 + Math.random() * 2.8;
+            const vel = new THREE.Vector3(
+                Math.cos(angle) * speed,
+                2.0 + Math.random() * 3.2,
+                Math.sin(angle) * speed
+            );
+            fxGroup.add(mesh);
+            activeParticles.push({ mesh, vel, life: 0.55 + Math.random() * 0.35 });
+        }
+        requestRender();
+    }
+
+    function spawnProjectileEffect(startPos, endPos, colorHex) {
+        const bolt = new THREE.Mesh(
+            sharedProjectileGeo,
+            getCachedMaterial(`proj_${colorHex}`, () => new THREE.MeshBasicMaterial({ color: colorHex }))
+        );
+        bolt.position.copy(startPos);
+        fxGroup.add(bolt);
+
+        const duration = Math.max(90, (startPos.distanceTo(endPos) * 55) / GameState.speedMultiplier);
+        return tweenAction(duration, (t) => {
+            bolt.position.lerpVectors(startPos, endPos, t);
+            bolt.position.y += Math.sin(t * Math.PI) * 0.25;
+        }).then(() => {
+            fxGroup.remove(bolt);
+            requestRender();
+        });
+    }
+
+    function computeEnemyThreatSet() {
+        const threatKeys = new Set();
+        GameState.units.filter(u => u.hp > 0 && u.faction === 'enemy').forEach(enemy => {
+            const reachable = getReachableHexes(enemy);
+            reachable.set(hexKey(enemy.q, enemy.r), getHex(enemy.q, enemy.r));
+            reachable.forEach(originHex => {
+                if (!originHex) return;
+                GameState.hexMap.forEach((cell, key) => {
+                    if (cell.terrain !== 'pillar' && hexDistance(originHex, cell) <= enemy.range) {
+                        threatKeys.add(key);
+                    }
+                });
+            });
+        });
+        return threatKeys;
+    }
+
+    function updateAllHighlights() {
+        // Reset all hex overlays and fire meshes
+        GameState.hexMap.forEach(cell => {
+            if (cell.highlightMesh) {
+                cell.highlightMesh.material.opacity = 0;
+            }
+            if (cell.fireMesh) {
+                cell.fireMesh.material.opacity = cell.fireTurns > 0 ? 0.65 : 0;
+            }
+        });
+
+        // Update unit selection halos
+        GameState.units.forEach(u => {
+            if (!u.selectionHalo) return;
+            if (u.hp > 0 && u.uid === GameState.selectedUnitId) {
+                u.selectionHalo.material.color.setHex(u.faction === 'player' ? 0xfacc15 : 0x34d399);
+                u.selectionHalo.material.opacity = 0.85;
+            } else {
+                u.selectionHalo.material.opacity = 0;
+            }
+        });
+
+        // Optional Enemy Danger Zone Overlay
+        if (GameState.showDangerZone) {
+            const threatKeys = computeEnemyThreatSet();
+            threatKeys.forEach(key => {
+                const cell = GameState.hexMap.get(key);
+                if (cell && cell.highlightMesh) {
+                    cell.highlightMesh.material.color.setHex(0xe11d48);
+                    cell.highlightMesh.material.opacity = 0.28;
+                }
+            });
+        }
+
+        const selectedUnit = GameState.units.find(u => u.uid === GameState.selectedUnitId && u.hp > 0);
+        if (!selectedUnit || GameState.phase !== 'player') return;
+
+        // Show movement & target overlays for controllable player unit
+        if (selectedUnit.faction === 'player' && !selectedUnit.hasActed) {
+            if (GameState.abilityMode && selectedUnit.ability) {
+                const ab = selectedUnit.ability;
+                GameState.hexMap.forEach(cell => {
+                    const dist = hexDistance(selectedUnit, cell);
+                    const occ = getUnitAt(cell.q, cell.r);
+                    if (ab.type === 'summon') {
+                        if (dist === 1 && cell.terrain !== 'pillar' && !occ) {
+                            cell.highlightMesh.material.color.setHex(0x38bdf8);
+                            cell.highlightMesh.material.opacity = 0.62;
+                        }
+                    } else if (ab.type === 'heal') {
+                        if (dist <= ab.range && occ && occ.faction === 'player') {
+                            cell.highlightMesh.material.color.setHex(0x10b981);
+                            cell.highlightMesh.material.opacity = 0.65;
+                        }
+                    } else {
+                        if (dist <= ab.range && occ && occ.faction === 'enemy') {
+                            cell.highlightMesh.material.color.setHex(0xf59e0b);
+                            cell.highlightMesh.material.opacity = 0.68;
+                        }
+                    }
+                });
+            } else {
+                // Reachable movement hexes in sky blue
+                if (!selectedUnit.hasMoved) {
+                    const reachable = getReachableHexes(selectedUnit);
+                    reachable.forEach(cell => {
+                        if (cell.q === selectedUnit.q && cell.r === selectedUnit.r) return;
+                        cell.highlightMesh.material.color.setHex(0x38bdf8);
+                        cell.highlightMesh.material.opacity = 0.45;
+                    });
+                }
+
+                // Enemies in weapon range in crimson red
+                GameState.units.filter(u => u.hp > 0 && u.faction === 'enemy').forEach(enemy => {
+                    if (hexDistance(selectedUnit, enemy) <= selectedUnit.range) {
+                        const cell = getHex(enemy.q, enemy.r);
+                        if (cell && cell.highlightMesh) {
+                            cell.highlightMesh.material.color.setHex(0xf43f5e);
+                            cell.highlightMesh.material.opacity = 0.65;
+                        }
+                    }
+                });
+            }
+        }
+        requestRender();
+    }
+
+    // ============================================================================
+    // 8. NECRON TACTICAL AI ENGINE & VICTORY / DEFEAT CHECKS
+    // ============================================================================
+    function checkBattleOutcome() {
+        const playersAlive = GameState.units.some(u => u.hp > 0 && u.faction === 'player');
+        const enemiesAlive = GameState.units.some(u => u.hp > 0 && u.faction === 'enemy');
+
+        if (!playersAlive || !enemiesAlive) {
+            GameState.phase = 'gameover';
+            const victory = playersAlive && !enemiesAlive;
+            document.getElementById('gameover-badge').textContent = victory ? 'MISSION ACCOMPLISHED' : 'SQUAD WIPED OUT';
+            document.getElementById('gameover-title').textContent = victory ? 'IMPERIAL VICTORY' : 'XENOS TRIUMPH';
+            document.getElementById('gameover-subtitle').textContent = victory
+                ? 'The Necron phalanx has been shattered in the name of the Emperor.'
+                : 'Your Ultramarines have fallen. Regroup and deploy a fresh strike team.';
+            document.getElementById('stat-end-turns').textContent = GameState.turn;
+            document.getElementById('stat-end-kills').textContent = GameState.stats.kills;
+            document.getElementById('stat-end-dmg').textContent = GameState.stats.damageDealt;
+            document.getElementById('gameover-modal').classList.remove('hidden');
+            updateHUD();
+            return true;
+        }
+        return false;
+    }
+
+    async function runEnemyAITurn() {
+        GameState.phase = 'enemy';
+        updateHUD();
+        setBanner('NECRON TURN — Xenos forces are advancing...');
+
+        const enemies = GameState.units.filter(u => u.hp > 0 && u.faction === 'enemy');
+        for (const enemy of enemies) {
+            enemy.hasMoved = false;
+            enemy.hasActed = false;
+            enemy.overwatchActive = false;
+            if (enemy.ability && enemy.ability.currentCooldown > 0) {
+                enemy.ability.currentCooldown--;
+            }
+            const h = getHex(enemy.q, enemy.r);
+            if (h && h.fireTurns > 0) {
+                applyDamageToUnit(enemy, 18, 'BURN!');
+            }
+        }
+
+        await delay(350 / GameState.speedMultiplier);
+
+        for (const enemy of enemies) {
+            if (enemy.hp <= 0 || checkBattleOutcome()) break;
+
+            const playerUnits = GameState.units.filter(u => u.hp > 0 && u.faction === 'player');
+            if (playerUnits.length === 0) break;
+
+            // 1. Check Healing / Summon Support Abilities
+            if (enemy.ability && enemy.ability.currentCooldown === 0) {
+                if (enemy.ability.type === 'heal') {
+                    const woundedAlly = GameState.units.find(u =>
+                        u.hp > 0 && u.faction === 'enemy' && u.hp < u.maxHp * 0.65 && hexDistance(enemy, u) <= 1
+                    );
+                    if (woundedAlly) {
+                        await resolveUnitAction(enemy, getHex(woundedAlly.q, woundedAlly.r), 'ability');
+                        enemy.ability.currentCooldown = enemy.ability.cooldown;
+                        enemy.hasActed = true;
+                        continue;
+                    }
+                } else if (enemy.ability.type === 'summon_necron') {
+                    const freeAdj = getNeighbors(enemy.q, enemy.r).find(n => n.terrain !== 'pillar' && !getUnitAt(n.q, n.r));
+                    if (freeAdj) {
+                        await resolveUnitAction(enemy, freeAdj, 'ability');
+                        enemy.ability.currentCooldown = enemy.ability.cooldown;
+                        enemy.hasActed = true;
+                        continue;
+                    }
+                }
+            }
+
+            // 2. Evaluate best destination hex (prioritizing attack opportunities, high ground & cover)
+            const reachable = getReachableHexes(enemy);
+            reachable.set(hexKey(enemy.q, enemy.r), getHex(enemy.q, enemy.r));
+
+            let bestScore = -Infinity;
+            let bestDest = getHex(enemy.q, enemy.r);
+            let bestTarget = null;
+
+            reachable.forEach(destHex => {
+                if (!destHex) return;
+                let posScore = destHex.elevation * 14;
+                if (destHex.terrain === 'trench') posScore += 12;
+                if (destHex.terrain === 'grass') posScore += 8;
+                if (destHex.fireTurns > 0) posScore -= 25;
+
+                // Evaluate potential targets from this hex
+                let localBestAttackScore = 0;
+                let localTarget = null;
+                for (const pUnit of playerUnits) {
+                    if (hexDistance(destHex, pUnit) <= enemy.range) {
+                        const pred = calculateCombatPrediction(enemy, pUnit, 'attack', destHex);
+                        const avgDmg = (pred.minTotal + pred.maxTotal) * 0.5;
+                        const killBonus = avgDmg >= pUnit.hp ? 75 : 0;
+                        const atkScore = avgDmg + killBonus;
+                        if (atkScore > localBestAttackScore) {
+                            localBestAttackScore = atkScore;
+                            localTarget = pUnit;
+                        }
+                    }
+                }
+
+                // If no target in range, reward closing distance to nearest Ultramarine
+                let approachScore = 0;
+                if (!localTarget) {
+                    const minDist = Math.min(...playerUnits.map(p => hexDistance(destHex, p)));
+                    approachScore = -minDist * 10;
+                }
+
+                const totalScore = posScore + localBestAttackScore + approachScore;
+                if (totalScore > bestScore) {
+                    bestScore = totalScore;
+                    bestDest = destHex;
+                    bestTarget = localTarget;
+                }
+            });
+
+            if (bestDest && (bestDest.q !== enemy.q || bestDest.r !== enemy.r)) {
+                await animateUnitMove(enemy, bestDest.q, bestDest.r);
+                if (enemy.hp <= 0 || checkBattleOutcome()) continue;
+            }
+
+            // 3. Execute Attack or Offensive Ability if in range
+            const validTargets = GameState.units.filter(u =>
+                u.hp > 0 && u.faction === 'player' && hexDistance(enemy, u) <= enemy.range
+            );
+            if (validTargets.length > 0) {
+                const target = bestTarget && validTargets.includes(bestTarget) ? bestTarget : validTargets[0];
+                const usePlasmaAoE = enemy.ability && enemy.ability.type === 'plasma_aoe' && enemy.ability.currentCooldown === 0;
+                if (usePlasmaAoE) {
+                    await resolveUnitAction(enemy, getHex(target.q, target.r), 'ability');
+                    enemy.ability.currentCooldown = enemy.ability.cooldown;
+                } else {
+                    await executeStrikeAnimation(enemy, target, 'attack');
+                }
+                enemy.hasActed = true;
+            } else if (enemy.traits.includes('Multi-Overwatch')) {
+                enemy.overwatchActive = true;
+                spawnFloatingPopup(enemy, 'OVERWATCH', '#34d399');
+            }
+        }
+
+        if (!checkBattleOutcome()) {
+            GameState.turn++;
+            startPlayerTurn();
+        }
+    }
+
+    // ============================================================================
+    // 9. TOUCH SCREEN & MOUSE INPUT HANDLING (ORBIT, 2-FINGER PAN, PINCH ZOOM, TAP)
+    // ============================================================================
+    function setupInputHandlers(domElem) {
+        // Mouse Events
+        domElem.addEventListener('mousedown', (e) => {
+            hideNoviceTooltip();
+            CamControl.isDragging = true;
+            CamControl.dragMoved = false;
+            CamControl.lastX = e.clientX;
+            CamControl.lastY = e.clientY;
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            updateHexHoverPill(e.clientX, e.clientY);
+            if (!CamControl.isDragging) return;
+            const dx = e.clientX - CamControl.lastX;
+            const dy = e.clientY - CamControl.lastY;
+            if (Math.abs(dx) > 4 || Math.abs(dy) > 4) CamControl.dragMoved = true;
+
+            CamControl.lastX = e.clientX;
+            CamControl.lastY = e.clientY;
+
+            if (e.buttons === 2 || e.shiftKey) {
+                panCamera(dx, dy);
+            } else {
+                orbitCamera(dx, dy);
+            }
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (CamControl.isDragging && !CamControl.dragMoved && e.button === 0) {
+                handleCanvasTap(e.clientX, e.clientY);
+            }
+            CamControl.isDragging = false;
+        });
+
+        domElem.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            CamControl.spherical.radius = THREE.MathUtils.clamp(
+                CamControl.spherical.radius + e.deltaY * 0.01, 7.5, 24
+            );
+            updateCameraTransform();
+        }, { passive: false });
+
+        domElem.addEventListener('contextmenu', e => e.preventDefault());
+
+        // Touch Events (1-finger orbit/tap, 2-finger simultaneous pan + pinch zoom)
+        domElem.addEventListener('touchstart', (e) => {
+            hideNoviceTooltip();
+            if (e.touches.length === 1) {
+                CamControl.isDragging = true;
+                CamControl.dragMoved = false;
+                CamControl.lastX = e.touches[0].clientX;
+                CamControl.lastY = e.touches[0].clientY;
+            } else if (e.touches.length === 2) {
+                CamControl.isDragging = false;
+                CamControl.dragMoved = true;
+                CamControl.pinchDist = getTouchDistance(e.touches[0], e.touches[1]);
+                const mid = getTouchMidpoint(e.touches[0], e.touches[1]);
+                CamControl.lastMidX = mid.x;
+                CamControl.lastMidY = mid.y;
+            }
+        }, { passive: false });
+
+        domElem.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (e.touches.length === 1 && CamControl.isDragging) {
+                const dx = e.touches[0].clientX - CamControl.lastX;
+                const dy = e.touches[0].clientY - CamControl.lastY;
+                if (Math.abs(dx) > 6 || Math.abs(dy) > 6) CamControl.dragMoved = true;
+                CamControl.lastX = e.touches[0].clientX;
+                CamControl.lastY = e.touches[0].clientY;
+                orbitCamera(dx, dy);
+            } else if (e.touches.length === 2) {
+                // 1. Two-finger midpoint pan across XZ battlefield plane
+                const mid = getTouchMidpoint(e.touches[0], e.touches[1]);
+                const panDx = mid.x - CamControl.lastMidX;
+                const panDy = mid.y - CamControl.lastMidY;
+                CamControl.lastMidX = mid.x;
+                CamControl.lastMidY = mid.y;
+                panCamera(panDx * 1.15, panDy * 1.15);
+
+                // 2. Simultaneous two-finger pinch zoom
+                const dist = getTouchDistance(e.touches[0], e.touches[1]);
+                const delta = CamControl.pinchDist - dist;
+                CamControl.pinchDist = dist;
+                CamControl.spherical.radius = THREE.MathUtils.clamp(
+                    CamControl.spherical.radius + delta * 0.03, 7.5, 24
+                );
+                updateCameraTransform();
+            }
+        }, { passive: false });
+
+        domElem.addEventListener('touchend', (e) => {
+            if (e.touches.length === 1) {
+                // Smooth transition if one finger lifts after a 2-finger gesture
+                CamControl.lastX = e.touches[0].clientX;
+                CamControl.lastY = e.touches[0].clientY;
+                CamControl.isDragging = false;
+            } else if (e.touches.length === 0) {
+                if (e.changedTouches.length === 1 && CamControl.isDragging && !CamControl.dragMoved) {
+                    const t = e.changedTouches[0];
+                    handleCanvasTap(t.clientX, t.clientY);
+                }
+                CamControl.isDragging = false;
+            }
+        });
+    }
+
+    function getTouchDistance(t1, t2) {
+        return Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+    }
+
+    function getTouchMidpoint(t1, t2) {
+        return {
+            x: (t1.clientX + t2.clientX) * 0.5,
+            y: (t1.clientY + t2.clientY) * 0.5
+        };
+    }
+
+    function orbitCamera(dx, dy) {
+        CamControl.spherical.theta -= dx * 0.007;
+        CamControl.spherical.phi = THREE.MathUtils.clamp(
+            CamControl.spherical.phi - dy * 0.007, 0.35, 1.25
+        );
+        updateCameraTransform();
+    }
+
+    function panCamera(dx, dy) {
+        const right = new THREE.Vector3();
+        camera.getWorldDirection(right);
+        right.cross(camera.up).normalize();
+        const forward = new THREE.Vector3(-right.z, 0, right.x);
+        CamControl.target.addScaledVector(right, -dx * 0.015);
+        CamControl.target.addScaledVector(forward, dy * 0.015);
+        CamControl.target.x = THREE.MathUtils.clamp(CamControl.target.x, -6, 6);
+        CamControl.target.z = THREE.MathUtils.clamp(CamControl.target.z, -6, 6);
+        updateCameraTransform();
+    }
+
+    function updateCameraTransform() {
+        const offset = new THREE.Vector3().setFromSpherical(CamControl.spherical);
+        camera.position.copy(CamControl.target).add(offset);
+        camera.lookAt(CamControl.target);
+        requestRender();
+    }
+
+    function resetCamera() {
+        CamControl.target.set(0, 0, 0);
+        CamControl.spherical.set(14.5, Math.PI / 3.15, 0);
+        updateCameraTransform();
+    }
+
+    function raycastHexAt(clientX, clientY) {
+        if (!hexInstancedMesh) return null;
+        const rect = renderer.domElement.getBoundingClientRect();
+        const w = rect.width || window.innerWidth;
+        const h = rect.height || window.innerHeight;
+        pointer.x = ((clientX - rect.left) / w) * 2 - 1;
+        pointer.y = -((clientY - rect.top) / h) * 2 + 1;
+        raycaster.setFromCamera(pointer, camera);
+
+        const hits = raycaster.intersectObject(hexInstancedMesh, false);
+        if (hits.length > 0 && hits[0].instanceId !== undefined) {
+            return GameState.hexList[hits[0].instanceId] || null;
+        }
+        return null;
+    }
+
+    function updateHexHoverPill(clientX, clientY) {
+        const hex = raycastHexAt(clientX, clientY);
+        const pill = document.getElementById('hex-info-pill');
+        if (!hex) {
+            pill.classList.add('hidden');
+            return;
+        }
+        const titleEl = document.getElementById('hex-info-title');
+        const descEl = document.getElementById('hex-info-desc');
+
+        const elevNames = ['Low Ground (Lv 0)', 'Mid Ground (Lv 1)', 'High Ground (Lv 2)'];
+        let title = elevNames[hex.elevation];
+        let desc = hex.elevation > 0 ? '+50% Dmg vs lower hexes' : 'Standard elevation';
+
+        if (hex.terrain === 'grass') {
+            title += ' • Tall Grass';
+            desc = 'Cover: -2 Ranged hits (min 1)';
+        } else if (hex.terrain === 'trench') {
+            title += ' • Fortified Trench';
+            desc = 'Cover: -50% Incoming Damage';
+        } else if (hex.terrain === 'pillar') {
+            title += ' • Ruined Monolith';
+            desc = 'Impassable (Flying only)';
+        }
+        if (hex.fireTurns > 0) {
+            title += ' • 🔥 ON FIRE';
+            desc = '18 Burn Dmg at turn start';
+        }
+
+        titleEl.textContent = title;
+        descEl.textContent = desc;
+        pill.classList.remove('hidden');
+    }
+
+    async function handleCanvasTap(clientX, clientY) {
+        if (GameState.phase !== 'player') return;
+
+        const tappedHex = raycastHexAt(clientX, clientY);
+        if (!tappedHex) return;
+
+        const unitOnHex = getUnitAt(tappedHex.q, tappedHex.r);
+        const selectedUnit = GameState.units.find(u => u.uid === GameState.selectedUnitId && u.hp > 0);
+
+        // Case 1: Ability Mode Active
+        if (selectedUnit && selectedUnit.faction === 'player' && !selectedUnit.hasActed && GameState.abilityMode && selectedUnit.ability) {
+            const ab = selectedUnit.ability;
+            if (ab.type === 'summon') {
+                const isAdjFree = hexDistance(selectedUnit, tappedHex) === 1 && tappedHex.terrain !== 'pillar' && !unitOnHex;
+                if (isAdjFree) {
+                    openTargetPreview(selectedUnit, tappedHex, 'ability');
+                    return;
+                }
+            } else if (ab.type === 'heal') {
+                if (unitOnHex && unitOnHex.faction === 'player' && hexDistance(selectedUnit, unitOnHex) <= ab.range) {
+                    openTargetPreview(selectedUnit, tappedHex, 'ability');
+                    return;
+                }
+            } else {
+                if (unitOnHex && unitOnHex.faction === 'enemy' && hexDistance(selectedUnit, unitOnHex) <= ab.range) {
+                    openTargetPreview(selectedUnit, tappedHex, 'ability');
+                    return;
+                }
+            }
+        }
+
+        // Case 2: Tapped on an Enemy Unit -> Open Attack Preview if in range
+        if (unitOnHex && unitOnHex.faction === 'enemy') {
+            if (selectedUnit && selectedUnit.faction === 'player' && !selectedUnit.hasActed) {
+                if (hexDistance(selectedUnit, unitOnHex) <= selectedUnit.range) {
+                    openTargetPreview(selectedUnit, tappedHex, 'attack');
+                    return;
+                } else {
+                    setBanner(`${unitOnHex.name} is out of ${selectedUnit.name}'s range (${selectedUnit.range}).`);
+                }
+            }
+            // Inspect enemy stats on HUD card
+            GameState.selectedUnitId = unitOnHex.uid;
+            cancelTargetPreview();
+            updateAllHighlights();
+            updateHUD();
+            return;
+        }
+
+        // Case 3: Tapped on a Friendly Ultramarine -> Select it
+        if (unitOnHex && unitOnHex.faction === 'player') {
+            cancelTargetPreview();
+            selectUnit(unitOnHex.uid);
+            return;
+        }
+
+        // Case 4: Tapped on an Empty Reachable Blue Hex -> Move Selected Ultramarine
+        if (!unitOnHex && selectedUnit && selectedUnit.faction === 'player' && !selectedUnit.hasMoved && !selectedUnit.hasActed) {
+            const reachable = getReachableHexes(selectedUnit);
+            if (reachable.has(hexKey(tappedHex.q, tappedHex.r))) {
+                cancelTargetPreview();
+                GameState.moveSnapshot = {
+                    unitId: selectedUnit.uid,
+                    fromQ: selectedUnit.q,
+                    fromR: selectedUnit.r
+                };
+                await animateUnitMove(selectedUnit, tappedHex.q, tappedHex.r);
+                updateAllHighlights();
+                updateHUD();
+
+                // Check if any enemy is now in range
+                const targetsInRange = GameState.units.filter(u =>
+                    u.hp > 0 && u.faction === 'enemy' && hexDistance(selectedUnit, u) <= selectedUnit.range
+                );
+                if (targetsInRange.length > 0) {
+                    setBanner(`${selectedUnit.name} moved! Tap a red enemy hex to strike, or Hold.`);
+                    if (GameState.tutorial.active && !GameState.tutorial.seenHints.has('in_range_after_move')) {
+                        triggerReactiveHint(
+                            'Target in Range!',
+                            `${targetsInRange[0].name} is highlighted in <strong>Red</strong>! Tap their hex to preview your attack, or tap <strong>↩ Undo</strong> to pick another tile.`
+                        );
+                        GameState.tutorial.seenHints.add('in_range_after_move');
+                    }
+                } else {
+                    setBanner(`${selectedUnit.name} moved. Use Ability, Hold, or select another unit.`);
+                }
+            }
+        }
+    }
+
+    // ============================================================================
+    // 10. HUD SYNCHRONIZATION, TOOLTIPS, TUTORIAL & PROJECTED HEALTH BARS
+    // ============================================================================
+    function updateHUD() {
+        document.getElementById('hud-turn').textContent = GameState.turn;
+        const phaseEl = document.getElementById('hud-phase');
+        if (GameState.phase === 'player') {
+            phaseEl.textContent = 'IMPERIAL TURN';
+            phaseEl.className = 'font-gothic text-xs sm:text-sm font-bold text-sky-300 tracking-wide';
+        } else if (GameState.phase === 'enemy') {
+            phaseEl.textContent = 'NECRON TURN';
+            phaseEl.className = 'font-gothic text-xs sm:text-sm font-bold text-emerald-400 tracking-wide';
+        }
+
+        // Tutorial Toggle Button State
+        const btnTut = document.getElementById('btn-tutorial');
+        if (GameState.tutorial.active) {
+            btnTut.classList.add('border-sky-400', 'bg-sky-950/90', 'text-sky-200');
+        } else {
+            btnTut.classList.remove('border-sky-400', 'bg-sky-950/90', 'text-sky-200');
+        }
+
+        // Squad Pips
+        const pPips = document.getElementById('player-pips');
+        const ePips = document.getElementById('enemy-pips');
+        pPips.innerHTML = '';
+        ePips.innerHTML = '';
+
+        GameState.units.filter(u => u.faction === 'player' && !u.traits.includes('Summon')).forEach(u => {
+            const dot = document.createElement('span');
+            dot.className = `w-2.5 h-2.5 rounded-full border ${
+                u.hp <= 0 ? 'bg-slate-800 border-slate-700' :
+                u.hasActed ? 'bg-sky-900 border-sky-600' : 'bg-sky-400 border-white shadow-sm'
+            }`;
+            pPips.appendChild(dot);
+        });
+
+        GameState.units.filter(u => u.faction === 'enemy' && !u.traits.includes('Summon')).forEach(u => {
+            const dot = document.createElement('span');
+            dot.className = `w-2.5 h-2.5 rounded-full border ${
+                u.hp <= 0 ? 'bg-slate-800 border-slate-700' : 'bg-emerald-400 border-emerald-200'
+            }`;
+            ePips.appendChild(dot);
+        });
+
+        // Danger Button Visual State
+        const btnDanger = document.getElementById('btn-danger');
+        if (GameState.showDangerZone) {
+            btnDanger.classList.add('border-rose-400', 'bg-rose-950/90', 'text-white');
+        } else {
+            btnDanger.classList.remove('border-rose-400', 'bg-rose-950/90', 'text-white');
+        }
+
+        document.getElementById('btn-end-turn').disabled = (GameState.phase !== 'player');
+
+        // Selected Unit Card
+        const unit = GameState.units.find(u => u.uid === GameState.selectedUnitId && u.hp > 0);
+        const card = document.getElementById('unit-card');
+        if (!unit) {
+            card.classList.add('hidden');
+            return;
+        }
+        card.classList.remove('hidden');
+
+        const isPlayer = unit.faction === 'player';
+        const avatar = document.getElementById('unit-avatar');
+        avatar.textContent = unit.badgeText;
+        avatar.style.backgroundColor = `#${unit.color.toString(16).padStart(6, '0')}`;
+        avatar.style.borderColor = `#${unit.trimColor.toString(16).padStart(6, '0')}`;
+
+        document.getElementById('unit-name').textContent = unit.name;
+        const fTag = document.getElementById('unit-faction-tag');
+        fTag.textContent = isPlayer ? 'Ultramarines' : 'Necrons';
+        fTag.className = `text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+            isPlayer ? 'bg-sky-950 text-sky-300 border-sky-700' : 'bg-emerald-950 text-emerald-300 border-emerald-700'
+        }`;
+
+        // Render interactive trait badges with novice tooltips
+        const traitsContainer = document.getElementById('unit-traits-container');
+        traitsContainer.innerHTML = '';
+        unit.traits.forEach(tr => {
+            const info = TRAIT_DESCRIPTIONS[tr] || { title: tr, desc: 'Special tactical unit trait.' };
+            const badge = document.createElement('span');
+            badge.className = 'stat-chip text-[10px] font-semibold text-amber-300 bg-amber-950/50 border border-amber-500/40 rounded-full px-2 py-0.5';
+            badge.textContent = `✦ ${tr}`;
+            badge.setAttribute('data-tip-title', info.title);
+            badge.setAttribute('data-tip-desc', info.desc);
+            traitsContainer.appendChild(badge);
+        });
+
+        document.getElementById('unit-role').textContent = `${unit.role} • ${unit.damageType} Damage`;
+
+        const hpPct = Math.max(0, Math.round((unit.hp / unit.maxHp) * 100));
+        const hpBar = document.getElementById('unit-hp-bar');
+        hpBar.style.width = `${hpPct}%`;
+        hpBar.className = `h-full transition-all duration-300 ${
+            hpPct > 50 ? 'bg-emerald-500' : hpPct > 25 ? 'bg-amber-500' : 'bg-rose-500'
+        }`;
+        document.getElementById('unit-hp-text').textContent = `${unit.hp}/${unit.maxHp}`;
+
+        document.getElementById('stat-mov').textContent = unit.move;
+        document.getElementById('stat-arm').textContent = unit.armor;
+        document.getElementById('stat-atk').textContent = `${unit.damage} × ${unit.hits}`;
+        document.getElementById('stat-prc').textContent = `${Math.round(unit.pierce * 100)}%`;
+        document.getElementById('stat-rng').textContent = unit.range === 1 ? 'Melee' : `${unit.range} Hex`;
+
+        // Update dynamic unit-specific tooltip descriptions for ATK & PRC
+        const chipAtk = document.getElementById('chip-atk');
+        chipAtk.setAttribute('data-tip-title', `${unit.name}'s Attack (${unit.damageType})`);
+        chipAtk.setAttribute('data-tip-desc', `Strikes ${unit.hits} time(s) at ${unit.damage} base damage each (${Math.round(unit.critChance * 100)}% Crit for +${unit.critDamage} dmg). Formula per hit: Max(Dmg - Enemy Armor, Dmg × Pierce%).`);
+
+        const chipPrc = document.getElementById('chip-prc');
+        chipPrc.setAttribute('data-tip-title', `${unit.damageType} Armor Pierce (${Math.round(unit.pierce * 100)}%)`);
+        chipPrc.setAttribute('data-tip-desc', `At least ${Math.round(unit.pierce * 100)}% of ${unit.name}'s ${unit.damage} base damage (${Math.round(unit.damage * unit.pierce)} dmg/hit) is guaranteed to bypass heavy enemy armor.`);
+
+        // Action Controls (Visible only for controllable Player units)
+        const actionsBar = document.getElementById('unit-actions-bar');
+        if (!isPlayer || GameState.phase !== 'player') {
+            actionsBar.classList.add('hidden');
+        } else {
+            actionsBar.classList.remove('hidden');
+            const canUndo = GameState.moveSnapshot && GameState.moveSnapshot.unitId === unit.uid && !unit.hasActed;
+            document.getElementById('btn-undo-move').classList.toggle('hidden', !canUndo);
+            document.getElementById('btn-wait').disabled = unit.hasActed;
+
+            const btnAb = document.getElementById('btn-ability');
+            if (!unit.ability) {
+                btnAb.classList.add('hidden');
+            } else {
+                btnAb.classList.remove('hidden');
+                document.getElementById('ability-name').textContent = unit.ability.name;
+                document.getElementById('ability-short-desc').textContent = unit.ability.shortDesc;
+                const cdBadge = document.getElementById('ability-cd');
+
+                if (unit.hasActed) {
+                    btnAb.disabled = true;
+                    btnAb.classList.remove('ability-active-glow');
+                    cdBadge.textContent = 'ACTED';
+                } else if (unit.ability.currentCooldown > 0) {
+                    btnAb.disabled = true;
+                    btnAb.classList.remove('ability-active-glow');
+                    cdBadge.textContent = `${unit.ability.currentCooldown}T CD`;
+                } else {
+                    btnAb.disabled = false;
+                    cdBadge.textContent = GameState.abilityMode ? 'ACTIVE' : 'READY';
+                    btnAb.classList.toggle('ability-active-glow', GameState.abilityMode);
+                }
+            }
+        }
+    }
+
+    function updateProjectedUnitBars() {
+        const layer = document.getElementById('unit-bars-layer');
+        layer.innerHTML = '';
+
+        const tempV = new THREE.Vector3();
+        GameState.units.forEach(u => {
+            if (u.hp <= 0 || !u.mesh) return;
+
+            tempV.copy(u.mesh.position);
+            tempV.y += u.traits.includes('Flying') ? 1.85 : 1.55;
+            tempV.project(camera);
+
+            if (tempV.z > 1) return; // Behind camera
+
+            const x = (tempV.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-(tempV.y * 0.5) + 0.5) * window.innerHeight;
+
+            const pct = Math.max(0, Math.round((u.hp / u.maxHp) * 100));
+            const isPlayer = u.faction === 'player';
+            const fillColor = isPlayer ? 'bg-sky-400' : 'bg-emerald-400';
+
+            const badge = document.createElement('div');
+            badge.className = 'unit-badge flex flex-col items-center';
+            badge.style.left = `${x}px`;
+            badge.style.top = `${y}px`;
+
+            badge.innerHTML = `
+                <div class="flex items-center gap-1 mb-0.5">
+                    ${u.overwatchActive ? '<span class="text-[9px] px-1 rounded bg-amber-500 text-black font-black">👁 OW</span>' : ''}
+                    ${isPlayer && !u.hasActed && GameState.phase === 'player' ? '<span class="w-1.5 h-1.5 rounded-full bg-amber-300 animate-ping"></span>' : ''}
+                </div>
+                <div class="w-11 h-1.5 bg-slate-950/90 rounded-full overflow-hidden border border-slate-700/90 shadow">
+                    <div class="h-full ${fillColor}" style="width: ${pct}%"></div>
+                </div>
+            `;
+            layer.appendChild(badge);
+        });
+    }
+
+    function spawnFloatingPopup(unit, text, color = '#facc15') {
+        if (!unit || !unit.mesh) return;
+        const pos = unit.mesh.position.clone();
+        pos.y += 1.6;
+        pos.project(camera);
+
+        const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+        const y = (-(pos.y * 0.5) + 0.5) * window.innerHeight;
+
+        const el = document.createElement('div');
+        el.className = 'floating-popup text-sm sm:text-base font-gothic tracking-wide';
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        el.style.color = color;
+        el.textContent = text;
+        document.getElementById('popups-layer').appendChild(el);
+
+        setTimeout(() => el.remove(), 1350);
+    }
+
+    function addCombatLog(msg) {
+        const logEl = document.getElementById('combat-log');
+        const entry = document.createElement('div');
+        entry.className = 'border-l-2 border-amber-500/60 pl-1.5 py-0.5';
+        entry.textContent = msg;
+        logEl.prepend(entry);
+        document.getElementById('log-count').textContent = logEl.children.length;
+    }
+
+    function setBanner(text) {
+        const bannerEl = document.getElementById('banner-text');
+        if (bannerEl) bannerEl.textContent = text;
+    }
+
+    function toggleDangerZone() {
+        GameState.showDangerZone = !GameState.showDangerZone;
+        updateAllHighlights();
+        updateHUD();
+    }
+
+    function toggleSpeed() {
+        GameState.speedMultiplier = GameState.speedMultiplier === 1 ? 2 : 1;
+        document.getElementById('btn-speed').textContent = `${GameState.speedMultiplier}x`;
+    }
+
+    function toggleRulesModal(show) {
+        document.getElementById('rules-modal').classList.toggle('hidden', !show);
+    }
+
+    // --- INTERACTIVE GUIDED TUTORIAL CONTROLLER ---
+    function renderTutorialCard() {
+        const card = document.getElementById('tutorial-card');
+        if (!GameState.tutorial.active) {
+            card.classList.add('hidden');
+            return;
+        }
+        card.classList.remove('hidden');
+
+        const idx = GameState.tutorial.stepIndex;
+        const step = TUTORIAL_STEPS[idx];
+        document.getElementById('tutorial-step-badge').textContent = `STEP ${idx + 1} OF ${TUTORIAL_STEPS.length}`;
+        document.getElementById('tutorial-title').textContent = step.title;
+        document.getElementById('tutorial-body').innerHTML = step.body;
+
+        const dotsEl = document.getElementById('tutorial-dots');
+        dotsEl.innerHTML = '';
+        TUTORIAL_STEPS.forEach((_, i) => {
+            const dot = document.createElement('button');
+            dot.className = `w-2 h-2 rounded-full transition-all ${i === idx ? 'bg-amber-400 w-4' : 'bg-slate-600 hover:bg-slate-400'}`;
+            dot.onclick = () => {
+                GameState.tutorial.stepIndex = i;
+                renderTutorialCard();
+            };
+            dotsEl.appendChild(dot);
+        });
+
+        document.getElementById('btn-tut-prev').disabled = (idx === 0);
+        document.getElementById('btn-tut-next').textContent = (idx === TUTORIAL_STEPS.length - 1) ? 'Got it! ✓' : 'Next →';
+    }
+
+    function nextTutorialStep() {
+        if (GameState.tutorial.stepIndex < TUTORIAL_STEPS.length - 1) {
+            GameState.tutorial.stepIndex++;
+            renderTutorialCard();
+        } else {
+            dismissTutorial();
+        }
+    }
+
+    function prevTutorialStep() {
+        if (GameState.tutorial.stepIndex > 0) {
+            GameState.tutorial.stepIndex--;
+            renderTutorialCard();
+        }
+    }
+
+    function dismissTutorial() {
+        GameState.tutorial.active = false;
+        renderTutorialCard();
+        updateHUD();
+    }
+
+    function toggleTutorialMode() {
+        GameState.tutorial.active = !GameState.tutorial.active;
+        if (GameState.tutorial.active && GameState.tutorial.stepIndex >= TUTORIAL_STEPS.length - 1) {
+            GameState.tutorial.stepIndex = 0;
+        }
+        renderTutorialCard();
+        updateHUD();
+    }
+
+    function triggerReactiveHint(title, htmlBody) {
+        if (!GameState.tutorial.active) return;
+        const card = document.getElementById('tutorial-card');
+        card.classList.remove('hidden');
+        document.getElementById('tutorial-step-badge').textContent = 'LIVE TACTICAL TIP';
+        document.getElementById('tutorial-title').textContent = title;
+        document.getElementById('tutorial-body').innerHTML = htmlBody;
+    }
+
+    // --- UNIVERSAL NOVICE TOOLTIP SYSTEM (HOVER & TOUCH TAP) ---
+    function initNoviceTooltips() {
+        const tipBox = document.getElementById('novice-tooltip');
+        const tipTitle = document.getElementById('novice-tip-title');
+        const tipDesc = document.getElementById('novice-tip-desc');
+
+        function showTipForElement(el) {
+            const title = el.getAttribute('data-tip-title');
+            const desc = el.getAttribute('data-tip-desc');
+            if (!title || !desc) return;
+
+            tipTitle.textContent = title;
+            tipDesc.textContent = desc;
+            tipBox.classList.remove('hidden');
+
+            const rect = el.getBoundingClientRect();
+            const boxRect = tipBox.getBoundingClientRect();
+
+            let left = rect.left + rect.width / 2 - boxRect.width / 2;
+            left = Math.max(10, Math.min(window.innerWidth - boxRect.width - 10, left));
+
+            // Position above element if near bottom, otherwise below element
+            let top = rect.top - boxRect.height - 10;
+            if (top < 12) {
+                top = rect.bottom + 10;
+            }
+            tipBox.style.left = `${left}px`;
+            tipBox.style.top = `${top}px`;
+        }
+
+        // Desktop hover support
+        document.addEventListener('mouseover', (e) => {
+            const target = e.target.closest('[data-tip-title]');
+            if (target) showTipForElement(target);
+        });
+
+        document.addEventListener('mouseout', (e) => {
+            const target = e.target.closest('[data-tip-title]');
+            if (target) hideNoviceTooltip();
+        });
+
+        // Mobile touch tap support for stat chips & badges
+        document.addEventListener('touchstart', (e) => {
+            const target = e.target.closest('[data-tip-title]');
+            if (target) {
+                showTipForElement(target);
+            } else if (!e.target.closest('#novice-tooltip')) {
+                hideNoviceTooltip();
+            }
+        }, { passive: true });
+    }
+
+    function hideNoviceTooltip() {
+        const tipBox = document.getElementById('novice-tooltip');
+        if (tipBox) tipBox.classList.add('hidden');
+    }
+
+    function restartBattle() {
+        document.getElementById('gameover-modal').classList.add('hidden');
+        document.getElementById('combat-log').innerHTML = '';
+        document.getElementById('log-count').textContent = '0';
+        GameState.turn = 1;
+        GameState.stats = { kills: 0, damageDealt: 0 };
+        GameState.tutorial.seenHints.clear();
+        generateBattlefield();
+        buildHexArenaMeshes();
+        deploySquads();
+        resetCamera();
+        startPlayerTurn();
+        renderTutorialCard();
+    }
+
+    // --- ANIMATION & UTILITY HELPERS ---
+    function delay(ms) {
+        return new Promise(res => setTimeout(res, ms));
+    }
+
+    function tweenAction(durationMs, onUpdate) {
+        RenderSched.activeTweens++;
+        requestRender();
+        return new Promise(resolve => {
+            const start = performance.now();
+            function frame(now) {
+                const t = Math.min(1, (now - start) / durationMs);
+                onUpdate(t);
+                requestRender();
+                if (t < 1) {
+                    requestAnimationFrame(frame);
+                } else {
+                    RenderSched.activeTweens = Math.max(0, RenderSched.activeTweens - 1);
+                    requestRender();
+                    resolve();
+                }
+            }
+            requestAnimationFrame(frame);
+        });
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        requestRender();
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        if (document.hidden) return;
+
+        const dt = Math.min(clock.getDelta(), 0.1);
+        const elapsed = clock.getElapsedTime();
+
+        // Subtle idle bobbing for Flying units only when continuous 60fps mode is enabled or during active motion
+        if (!GameState.ecoMode || RenderSched.activeTweens > 0 || activeParticles.length > 0) {
+            GameState.units.forEach((u, idx) => {
+                if (u.hp <= 0 || !u.bodyMesh) return;
+                if (u.traits.includes('Flying')) {
+                    u.bodyMesh.position.y = 0.38 + Math.sin(elapsed * 3.2 + idx) * 0.06;
+                }
+            });
+        }
+
+        // Update 3D particles
+        if (activeParticles.length > 0) {
+            for (let i = activeParticles.length - 1; i >= 0; i--) {
+                const p = activeParticles[i];
+                p.life -= dt;
+                if (p.life <= 0) {
+                    fxGroup.remove(p.mesh);
+                    activeParticles.splice(i, 1);
+                } else {
+                    p.vel.y -= 9.8 * dt;
+                    p.mesh.position.addScaledVector(p.vel, dt);
+                    p.mesh.scale.setScalar(Math.max(0.01, p.life * 1.8));
+                }
+            }
+            RenderSched.dirty = true;
+        }
+
+        // Only execute WebGL draw calls + DOM bar projections when dirty or in 60fps mode
+        if (!GameState.ecoMode || RenderSched.dirty || RenderSched.activeTweens > 0 || activeParticles.length > 0) {
+            updateProjectedUnitBars();
+            renderer.render(scene, camera);
+            RenderSched.dirty = false;
+        }
+    }
+
+    // --- BOOTSTRAP ---
+    window.onload = function () {
+        registerPWAManifest();
+        initThreeJS();
+        initNoviceTooltips();
+        generateBattlefield();
+        buildHexArenaMeshes();
+        deploySquads();
+        startPlayerTurn();
+        renderTutorialCard();
+        addCombatLog('Ultramarine Strike Force deployed. Purge the Necron threat!');
+        requestRender(true);
+        updateProjectedUnitBars();
+        renderer.render(scene, camera);
+        animate();
+    };
+    </script>
+</body>
+</html>
